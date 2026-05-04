@@ -49,6 +49,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   late List<PaymentRecord> _editablePayments;
 
   final _dateFormat = DateFormat('dd/MM/yyyy', 'he');
+  final FocusNode _priceFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -97,6 +98,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
 
   @override
   void dispose() {
+    _priceFocusNode.dispose();
     _priceController.dispose();
     _dailyRateController.dispose();
     _changedDailyRateController.dispose();
@@ -301,6 +303,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
       totalPrice = baseDailyRate * billableDays;
     }
 
+    if (_priceFocusNode.hasFocus) return;
     _priceController.text = totalPrice.toStringAsFixed(0);
   }
 
@@ -382,17 +385,43 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
       final enteredAmount =
           double.tryParse(_paymentAmountController.text.replaceAll(',', '.'));
       final hasExplicitAmount = enteredAmount != null && enteredAmount > 0;
-      if (!_splitPayment && remainingBeforePayment <= 0.01 && !hasExplicitAmount) {
-        // Already fully paid booking edit: no new payment record needed.
+      final hasPriorPayments = existingPayments.isNotEmpty;
+
+      var shouldAddPayment = false;
+      var amountToAdd = 0.0;
+
+      if (_splitPayment) {
+        if (!hasExplicitAmount) {
+          if (mounted) {
+            showErrorSnackbar(context, 'יש להזין סכום לתשלום בפיצול');
+          }
+          return;
+        }
+        shouldAddPayment = true;
+        amountToAdd = enteredAmount;
+      } else if (hasPriorPayments) {
+        // Never auto-create a payment for the remaining balance when payments
+        // already exist — that would fake money received (e.g. after manual total edit).
+        if (hasExplicitAmount) {
+          shouldAddPayment = true;
+          amountToAdd = enteredAmount;
+        }
       } else {
+        // First payment(s): allow one-shot full remainder without split.
+        if (remainingBeforePayment <= 0.01 && !hasExplicitAmount) {
+          shouldAddPayment = false;
+        } else {
+          shouldAddPayment = true;
+          amountToAdd =
+              hasExplicitAmount ? enteredAmount : remainingBeforePayment;
+        }
+      }
+
+      if (shouldAddPayment) {
         if (_paymentMethod == null) {
           if (mounted) showErrorSnackbar(context, AppStrings.paymentMethod);
           return;
         }
-        final amountToAdd = _splitPayment
-            ? (enteredAmount ?? 0)
-            : (remainingBeforePayment > 0 ? remainingBeforePayment : (enteredAmount ?? 0));
-
         if (amountToAdd <= 0) {
           if (mounted) {
             showErrorSnackbar(context, 'יש להזין סכום תקין לתשלום');
@@ -665,9 +694,9 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _priceController,
+                  focusNode: _priceFocusNode,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
-                  readOnly: true,
                   decoration: const InputDecoration(
                     labelText: AppStrings.totalPrice,
                     prefixText: '₪',
