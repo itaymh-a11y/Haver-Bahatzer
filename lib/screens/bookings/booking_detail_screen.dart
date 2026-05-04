@@ -356,7 +356,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             _DetailRow(
                 label: AppStrings.endDate,
                 value: dateFormat.format(liveBooking.endDate)),
-            _DetailRow(label: 'לילות', value: '${liveBooking.numberOfDays - 1}'),
+            _DetailRow(label: 'ימים', value: '${liveBooking.numberOfDays}'),
           ],
 
           if (liveBooking.type == BookingType.introMeeting) ...[
@@ -375,15 +375,22 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                 value: '₪${liveBooking.totalPrice!.toStringAsFixed(0)}'),
             _DetailRow(
               label: AppStrings.isPaid,
-              value:
-                  liveBooking.isPaid ? AppStrings.isPaid : AppStrings.unpaid,
+              value: liveBooking.remainingAmount <= 0.01
+                  ? AppStrings.isPaid
+                  : liveBooking.paidAmount > 0
+                      ? '${AppStrings.partiallyPaid} ${liveBooking.paidAmount.toStringAsFixed(0)}/${liveBooking.totalPrice!.toStringAsFixed(0)}'
+                      : AppStrings.unpaid,
               valueColor:
-                  liveBooking.isPaid ? AppColors.primary : AppColors.error,
+                  liveBooking.remainingAmount <= 0.01
+                      ? AppColors.primary
+                      : liveBooking.paidAmount > 0
+                          ? Colors.orange
+                          : AppColors.error,
             ),
-            if (liveBooking.isPaid && liveBooking.paymentMethod != null)
+            if (liveBooking.payments.isNotEmpty)
               _DetailRow(
                   label: AppStrings.paymentMethod,
-                  value: liveBooking.paymentMethod!.hebrewLabel),
+                  value: liveBooking.payments.last.method.hebrewLabel),
           ],
 
           // ── Contract section (boarding only) ───────────────────────────

@@ -17,9 +17,26 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
+      // Prefer values from FlutterFire after `flutterfire configure --platforms=web`.
+      // Until then, pass the Web app id from Firebase Console (Project settings → Your apps → Web):
+      //   flutter run -d chrome --dart-define=FIREBASE_WEB_APP_ID=1:...:web:...
+      // Optional if the Web API key differs from Android:
+      //   --dart-define=FIREBASE_WEB_API_KEY=...
+      const webAppId = String.fromEnvironment('FIREBASE_WEB_APP_ID');
+      const webApiKey = String.fromEnvironment(
+        'FIREBASE_WEB_API_KEY',
+        defaultValue: 'AIzaSyCgsDq1vUZ4gfIgGurSQti35F8NpVNjCew',
+      );
+      if (webAppId.isEmpty) {
+      return web;
+      }
+      return FirebaseOptions(
+        apiKey: webApiKey,
+        appId: webAppId,
+        messagingSenderId: '345774178337',
+        projectId: 'haver-bahatzer',
+        authDomain: 'haver-bahatzer.firebaseapp.com',
+        storageBucket: 'haver-bahatzer.firebasestorage.app',
       );
     }
     switch (defaultTargetPlatform) {
@@ -65,4 +82,15 @@ class DefaultFirebaseOptions {
     storageBucket: 'haver-bahatzer.firebasestorage.app',
     iosBundleId: 'com.haverba.haverBahatzer',
   );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyDOhAsU0Aj7hQ36bWXNiSLMOkhFuO5hq8c',
+    appId: '1:345774178337:web:269be11cc249a3ba00a360',
+    messagingSenderId: '345774178337',
+    projectId: 'haver-bahatzer',
+    authDomain: 'haver-bahatzer.firebaseapp.com',
+    storageBucket: 'haver-bahatzer.firebasestorage.app',
+    measurementId: 'G-6K39LG5E9H',
+  );
+
 }

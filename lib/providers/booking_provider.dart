@@ -6,6 +6,16 @@ import '../models/booking_model.dart';
 import '../services/booking_service.dart';
 import '../services/storage_service.dart';
 
+class BookingPaymentEntry {
+  final Booking booking;
+  final PaymentRecord payment;
+
+  BookingPaymentEntry({
+    required this.booking,
+    required this.payment,
+  });
+}
+
 class BookingProvider extends ChangeNotifier {
   final BookingService _bookingService;
   final StorageService _storageService;
@@ -84,23 +94,28 @@ class BookingProvider extends ChangeNotifier {
 
   // ── Financial getters ──────────────────────────────────────────────────────
 
-  double revenueForMonth(DateTime month) {
-    return paidBookingsForMonth(month)
-        .fold(0.0, (sum, b) => sum + (b.totalPrice ?? 0));
-  }
-
   List<Booking> paidBookingsForMonth(DateTime month) => _bookings
       .where((b) =>
           b.type == BookingType.boarding &&
-          b.isPaid &&
-          b.paidAt != null &&
-          b.paidAt!.year == month.year &&
-          b.paidAt!.month == month.month)
+          b.payments.any((p) => p.paidAt.year == month.year && p.paidAt.month == month.month))
       .toList();
 
   List<Booking> get unpaidBookings => _bookings
-      .where((b) => !b.isPaid && b.totalPrice != null && b.totalPrice! > 0)
+      .where((b) => b.type == BookingType.boarding && b.remainingAmount > 0.01)
       .toList();
+
+  List<BookingPaymentEntry> paymentEntriesForMonth(DateTime month) {
+    final result = <BookingPaymentEntry>[];
+    for (final booking in _bookings) {
+      if (booking.type != BookingType.boarding) continue;
+      for (final payment in booking.payments) {
+        if (payment.paidAt.year == month.year && payment.paidAt.month == month.month) {
+          result.add(BookingPaymentEntry(booking: booking, payment: payment));
+        }
+      }
+    }
+    return result;
+  }
 
   double averageStayDaysForMonth(DateTime month) {
     final bookings = _boardingForMonth(month);
@@ -134,6 +149,15 @@ class BookingProvider extends ChangeNotifier {
 
   List<Booking> boardingBookingsForMonth(DateTime month) => _boardingForMonth(month);
 
+  List<Booking> boardingBookingsOverlappingMonth(DateTime month) {
+    final monthStart = DateTime(month.year, month.month, 1);
+    final monthEnd = DateTime(month.year, month.month + 1, 0);
+    return _bookings.where((b) {
+      if (b.type != BookingType.boarding) return false;
+      return !b.endDate.isBefore(monthStart) && !b.startDate.isAfter(monthEnd);
+    }).toList();
+  }
+
   List<Booking> _boardingForMonth(DateTime month) => _bookings
       .where((b) =>
           b.type == BookingType.boarding &&
@@ -150,17 +174,27 @@ class BookingProvider extends ChangeNotifier {
   int totalBoardingDaysForDog(String dogId) =>
       boardingBookingsForDog(dogId).fold(0, (sum, b) => sum + b.numberOfDays);
 
-  double totalPaidAmountForDog(String dogId, double? dogDailyRate) {
+  double totalPaidAmountForDog(String dogId) {
     double total = 0.0;
     for (final b in boardingBookingsForDog(dogId)) {
-      if (!b.isPaid) continue;
-      if (dogDailyRate != null) {
-        total += dogDailyRate * b.numberOfDays;
-      } else if (b.totalPrice != null && b.dogIds.isNotEmpty) {
-        total += b.totalPrice! / b.dogIds.length;
-      }
+      if (b.totalPrice == null) continue;
+      if (b.remainingAmount > 0.01) continue;
+      total += b.totalPrice!;
     }
     return total;
+  }
+
+  double revenueForMonth(DateTime month) {
+    double sum = 0.0;
+    for (final b in _bookings) {
+      if (b.type != BookingType.boarding) continue;
+      for (final payment in b.payments) {
+        if (payment.paidAt.year == month.year && payment.paidAt.month == month.month) {
+          sum += payment.amount;
+        }
+      }
+    }
+    return sum;
   }
 
   Map<String, int> kennelDistributionForDog(String dogId) {
@@ -226,11 +260,28 @@ class BookingProvider extends ChangeNotifier {
       if (booking.type == BookingType.introMeeting) continue;
       if (booking.kennelId != kennelId) continue;
 
+      final sameDayTurnover = _sameDay(start, booking.endDate);
+      if (sameDayTurnover) continue;
+
       final hasOverlap = !end.isBefore(booking.startDate) &&
           !booking.endDate.isBefore(start);
       if (hasOverlap) return AppStrings.conflictKennel;
     }
     return null;
+  }
+
+  bool hasSameDayCheckoutInKennel(
+    String kennelId,
+    DateTime start, {
+    String? excludeId,
+  }) {
+    for (final booking in _bookings) {
+      if (booking.id == excludeId) continue;
+      if (booking.type == BookingType.introMeeting) continue;
+      if (booking.kennelId != kennelId) continue;
+      if (_sameDay(start, booking.endDate)) return true;
+    }
+    return false;
   }
 
   // ── CRUD ───────────────────────────────────────────────────────────────────

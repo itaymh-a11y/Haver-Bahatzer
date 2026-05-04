@@ -177,10 +177,14 @@ class BookingCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '₪${booking.totalPrice!.toStringAsFixed(0)}  ${booking.isPaid ? AppStrings.isPaid : AppStrings.unpaid}',
+                          booking.remainingAmount <= 0.01
+                              ? '₪${booking.totalPrice!.toStringAsFixed(0)}  ${AppStrings.isPaid}'
+                              : booking.paidAmount > 0
+                                  ? '${AppStrings.partiallyPaid} ${booking.paidAmount.toStringAsFixed(0)}/${booking.totalPrice!.toStringAsFixed(0)}'
+                                  : '₪${booking.totalPrice!.toStringAsFixed(0)}  ${AppStrings.unpaid}',
                           style:
                               Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: booking.isPaid
+                                    color: booking.remainingAmount <= 0.01
                                         ? AppColors.primary
                                         : AppColors.textSecondary,
                                   ),

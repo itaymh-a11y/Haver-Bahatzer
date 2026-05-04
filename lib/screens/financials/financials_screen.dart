@@ -36,7 +36,7 @@ class _FinancialsScreenState extends State<FinancialsScreen>
 
   void _showIncomeDetails(
     BuildContext context,
-    List<Booking> bookings,
+    List<BookingPaymentEntry> entries,
     DogProvider dogProvider,
   ) {
     showModalBottomSheet(
@@ -46,7 +46,43 @@ class _FinancialsScreenState extends State<FinancialsScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (_) => _IncomeDetailsSheet(
-        bookings: bookings,
+        entries: entries,
+        dogProvider: dogProvider,
+      ),
+    );
+  }
+
+  void _showHostedDogsDetails(
+    BuildContext context,
+    DateTime month,
+    BookingProvider bookingProvider,
+    DogProvider dogProvider,
+  ) {
+    final monthlyBookings = bookingProvider.boardingBookingsForMonth(month);
+    final summariesByDog = <String, _HostedDogMonthSummary>{};
+
+    for (final booking in monthlyBookings) {
+      for (final dogId in booking.dogIds) {
+        final summary = summariesByDog.putIfAbsent(
+          dogId,
+          () => _HostedDogMonthSummary(dogId: dogId),
+        );
+        summary.ranges.add(_DateRange(start: booking.startDate, end: booking.endDate));
+        summary.totalDays += booking.numberOfDays;
+      }
+    }
+
+    final summaries = summariesByDog.values.toList()
+      ..sort((a, b) => b.totalDays.compareTo(a.totalDays));
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => _HostedDogsDetailsSheet(
+        summaries: summaries,
         dogProvider: dogProvider,
       ),
     );
@@ -68,6 +104,16 @@ class _FinancialsScreenState extends State<FinancialsScreen>
     final dogsHosted = bookingProvider.uniqueDogsHostedForMonth(_selectedMonth);
     final dayDist = bookingProvider.bookingDayDistributionForMonth(_selectedMonth);
     final unpaid = bookingProvider.unpaidBookings;
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final upcomingDebts = unpaid
+        .where((b) => b.startDate.isAfter(todayDate))
+        .toList()
+      ..sort((a, b) => a.endDate.compareTo(b.endDate));
+    final endedDebts = unpaid
+        .where((b) => b.endDate.isBefore(todayDate))
+        .toList()
+      ..sort((a, b) => a.endDate.compareTo(b.endDate));
     final monthFormat = DateFormat('MMMM yyyy', 'he');
     final dateFormat = DateFormat('dd/MM/yyyy', 'he');
 
@@ -139,7 +185,7 @@ class _FinancialsScreenState extends State<FinancialsScreen>
                       value: '₪${monthRevenue.toStringAsFixed(0)}',
                       onTap: () => _showIncomeDetails(
                         context,
-                        bookingProvider.paidBookingsForMonth(_selectedMonth),
+                        bookingProvider.paymentEntriesForMonth(_selectedMonth),
                         dogProvider,
                       ),
                     ),
@@ -158,6 +204,12 @@ class _FinancialsScreenState extends State<FinancialsScreen>
                       icon: Icons.pets_outlined,
                       label: 'כלבים שאורחו',
                       value: '$dogsHosted',
+                      onTap: () => _showHostedDogsDetails(
+                        context,
+                        _selectedMonth,
+                        bookingProvider,
+                        dogProvider,
+                      ),
                     ),
                     const SizedBox(height: 12),
 
@@ -178,11 +230,47 @@ class _FinancialsScreenState extends State<FinancialsScreen>
                         ),
                       )
                     else
-                      ...unpaid.map((b) => _DebtCard(
-                            booking: b,
-                            dogs: dogProvider.dogs,
-                            dateFormat: dateFormat,
-                          )),
+                      ...[
+                        Text(
+                          'חובות להזמנות שהסתיימו ולא שולמו',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 6),
+                        if (endedDebts.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              'אין חובות בקבוצה זו',
+                              style: TextStyle(color: AppColors.textSecondary),
+                            ),
+                          )
+                        else
+                          ...endedDebts.map((b) => _DebtCard(
+                                booking: b,
+                                dogs: dogProvider.dogs,
+                                dateFormat: dateFormat,
+                              )),
+                        const SizedBox(height: 12),
+                        Text(
+                          'חובות להזמנות שטרם התחילו',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 6),
+                        if (upcomingDebts.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              'אין חובות בקבוצה זו',
+                              style: TextStyle(color: AppColors.textSecondary),
+                            ),
+                          )
+                        else
+                          ...upcomingDebts.map((b) => _DebtCard(
+                                booking: b,
+                                dogs: dogProvider.dogs,
+                                dateFormat: dateFormat,
+                              )),
+                      ],
 
                     const SizedBox(height: 24),
                   ],
@@ -219,7 +307,7 @@ class _BookingsTableTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yy', 'he');
-    final bookings = bookingProvider.boardingBookingsForMonth(selectedMonth)
+    final bookings = bookingProvider.boardingBookingsOverlappingMonth(selectedMonth)
       ..sort((a, b) => b.startDate.compareTo(a.startDate));
 
     if (bookings.isEmpty) {
@@ -263,6 +351,20 @@ class _BookingsTableTab extends StatelessWidget {
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (_, i) {
               final b = bookings[i];
+              final monthPayments = b.payments
+                  .where((p) =>
+                      p.paidAt.year == selectedMonth.year &&
+                      p.paidAt.month == selectedMonth.month)
+                  .toList()
+                ..sort((a, b) => a.paidAt.compareTo(b.paidAt));
+              final monthPaidAmount =
+                  monthPayments.fold<double>(0, (sum, p) => sum + p.amount);
+              final hasAnyPayments = b.paidAmount > 0;
+              final amountColor = monthPaidAmount > 0
+                  ? AppColors.primary
+                  : hasAnyPayments
+                      ? Colors.blue.shade700
+                      : AppColors.error;
               final ownerName = b.dogIds
                   .map((id) {
                     final idx = dogProvider.dogs.indexWhere((d) => d.id == id);
@@ -275,6 +377,7 @@ class _BookingsTableTab extends StatelessWidget {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       flex: 3,
@@ -285,25 +388,54 @@ class _BookingsTableTab extends StatelessWidget {
                     ),
                     Expanded(
                       flex: 2,
-                      child: Text(
-                        '₪${b.totalPrice?.toStringAsFixed(0) ?? '—'}',
-                        style: TextStyle(
-                          color: b.isPaid ? AppColors.primary : AppColors.error,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            b.totalPrice == null
+                                ? '—'
+                                : monthPaidAmount > 0
+                                    ? '₪${monthPaidAmount.toStringAsFixed(0)} שולם'
+                                    : '₪${b.totalPrice!.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              color: amountColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (monthPayments.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            ...monthPayments.map(
+                              (p) => Text(
+                                '₪${p.amount.toStringAsFixed(0)} ${p.method.hebrewLabel} ${dateFormat.format(p.paidAt)}',
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                     Expanded(
                       flex: 2,
                       child: Text(
-                        b.paymentMethod?.hebrewLabel ?? '—',
+                        monthPayments.length > 1
+                            ? 'מפוצל'
+                            : monthPayments.isNotEmpty
+                            ? monthPayments.last.method.hebrewLabel
+                            : '—',
                         style: const TextStyle(color: AppColors.textSecondary),
                       ),
                     ),
                     SizedBox(
                       width: 60,
                       child: Text(
-                        b.paidAt != null ? dateFormat.format(b.paidAt!) : '—',
+                        monthPayments.length > 1
+                            ? '—'
+                            : monthPayments.isNotEmpty
+                            ? dateFormat.format(monthPayments.last.paidAt)
+                            : '—',
                         style: const TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 12,
@@ -493,7 +625,9 @@ class _DebtCard extends StatelessWidget {
           '${dateFormat.format(booking.startDate)} – ${dateFormat.format(booking.endDate)}',
         ),
         trailing: Text(
-          '₪${booking.totalPrice!.toStringAsFixed(0)}',
+          booking.paidAmount > 0
+              ? '₪${booking.remainingAmount.toStringAsFixed(0)} מתוך ₪${booking.totalPrice!.toStringAsFixed(0)}'
+              : '₪${booking.totalPrice!.toStringAsFixed(0)}',
           style: const TextStyle(
             color: AppColors.error,
             fontWeight: FontWeight.bold,
@@ -508,19 +642,19 @@ class _DebtCard extends StatelessWidget {
 // ── Income Details Modal ─────────────────────────────────────────────────────
 
 class _IncomeDetailsSheet extends StatelessWidget {
-  final List<Booking> bookings;
+  final List<BookingPaymentEntry> entries;
   final DogProvider dogProvider;
 
   const _IncomeDetailsSheet({
-    required this.bookings,
+    required this.entries,
     required this.dogProvider,
   });
 
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yy', 'he');
-    final sorted = [...bookings]
-      ..sort((a, b) => (b.paidAt ?? b.startDate).compareTo(a.paidAt ?? a.startDate));
+    final sorted = [...entries]
+      ..sort((a, b) => b.payment.paidAt.compareTo(a.payment.paidAt));
 
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -554,7 +688,7 @@ class _IncomeDetailsSheet extends StatelessWidget {
                           ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      '${bookings.length} הזמנות',
+                      '${entries.length} תשלומים',
                       style: const TextStyle(color: AppColors.textSecondary),
                     ),
                   ],
@@ -582,8 +716,8 @@ class _IncomeDetailsSheet extends StatelessWidget {
                 itemCount: sorted.length,
                 separatorBuilder: (_, __) => const Divider(height: 1),
                 itemBuilder: (_, i) {
-                  final b = sorted[i];
-                  final ownerName = b.dogIds
+                  final entry = sorted[i];
+                  final ownerName = entry.booking.dogIds
                       .map((id) {
                         final idx = dogProvider.dogs.indexWhere((d) => d.id == id);
                         return idx != -1 ? dogProvider.dogs[idx].ownerName : '';
@@ -608,7 +742,7 @@ class _IncomeDetailsSheet extends StatelessWidget {
                         Expanded(
                           flex: 2,
                           child: Text(
-                            '₪${b.totalPrice?.toStringAsFixed(0) ?? '—'}',
+                            '₪${entry.payment.amount.toStringAsFixed(0)}',
                             style: const TextStyle(
                               color: AppColors.primary,
                               fontWeight: FontWeight.w600,
@@ -619,7 +753,7 @@ class _IncomeDetailsSheet extends StatelessWidget {
                         Expanded(
                           flex: 2,
                           child: Text(
-                            b.paymentMethod?.hebrewLabel ?? '—',
+                            entry.payment.method.hebrewLabel,
                             style: const TextStyle(color: AppColors.textSecondary),
                           ),
                         ),
@@ -627,7 +761,7 @@ class _IncomeDetailsSheet extends StatelessWidget {
                         SizedBox(
                           width: 60,
                           child: Text(
-                            b.paidAt != null ? dateFormat.format(b.paidAt!) : '—',
+                            dateFormat.format(entry.payment.paidAt),
                             style: const TextStyle(
                               color: AppColors.textSecondary,
                               fontSize: 12,
@@ -645,4 +779,155 @@ class _IncomeDetailsSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+class _HostedDogsDetailsSheet extends StatelessWidget {
+  final List<_HostedDogMonthSummary> summaries;
+  final DogProvider dogProvider;
+
+  const _HostedDogsDetailsSheet({
+    required this.summaries,
+    required this.dogProvider,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dateFormat = DateFormat('dd/MM/yy', 'he');
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.65,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (_, scrollController) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Column(
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'כלבים שאורחו',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      '${summaries.length} כלבים',
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Divider(height: 1),
+              ],
+            ),
+          ),
+          if (summaries.isEmpty)
+            const Expanded(
+              child: Center(
+                child: Text(
+                  'אין כלבים שאורחו בחודש זה',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.separated(
+                controller: scrollController,
+                padding: const EdgeInsets.all(16),
+                itemCount: summaries.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (_, i) {
+                  final summary = summaries[i];
+                  final dogIndex = dogProvider.dogs.indexWhere((d) => d.id == summary.dogId);
+                  final dog = dogIndex != -1 ? dogProvider.dogs[dogIndex] : null;
+                  final dogName = dog?.name ?? 'כלב לא זמין';
+                  final photoUrl = dog?.photoUrl;
+                  final sortedRanges = [...summary.ranges]
+                    ..sort((a, b) => b.start.compareTo(a.start));
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 22,
+                          backgroundColor: AppColors.chipBackground,
+                          backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
+                              ? NetworkImage(photoUrl)
+                              : null,
+                          child: (photoUrl == null || photoUrl.isEmpty)
+                              ? const Icon(Icons.pets, color: AppColors.textSecondary)
+                              : null,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                dogName,
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'סה"כ ימים: ${summary.totalDays}',
+                                style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              ...sortedRanges.map(
+                                (range) => Text(
+                                  '${dateFormat.format(range.start)} - ${dateFormat.format(range.end)}  (${range.end.difference(range.start).inDays + 1} ימים)',
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HostedDogMonthSummary {
+  final String dogId;
+  final List<_DateRange> ranges = [];
+  int totalDays = 0;
+
+  _HostedDogMonthSummary({required this.dogId});
+}
+
+class _DateRange {
+  final DateTime start;
+  final DateTime end;
+
+  _DateRange({required this.start, required this.end});
 }

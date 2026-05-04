@@ -81,6 +81,18 @@ class AppStrings {
   static const totalPrice = 'מחיר כולל';
   static const isPaid = 'שולם';
   static const unpaid = 'לא שולם';
+  static const partiallyPaid = 'שולם חלקית';
+  static const splitPayment = 'פיצול תשלום';
+  static const amountPaidNow = 'סכום ששולם כעת';
+  static const amountRemaining = 'יתרה';
+  static const paymentDate = 'תאריך תשלום';
+  static const paymentSummary = 'סיכום תשלום';
+  static const paymentBreakdown = 'פירוט תשלומים';
+  static const chargeCheckoutDay = 'להחשיב את יום היציאה במחיר';
+  static const bookingDailyRate = 'מחיר יומי להזמנה';
+  static const changeDailyRateMidStay = 'שינוי מחיר יומי באמצע השהייה';
+  static const newDailyRate = 'מחיר יומי חדש';
+  static const rateChangeStartDate = 'החל מתאריך';
   static const paymentMethod = 'אמצעי תשלום';
   static const bit = 'ביט';
   static const cash = 'מזומן';
@@ -100,6 +112,10 @@ class AppStrings {
   static const confirmDeleteBooking = 'פעולה זו תמחק את ההזמנה לצמיתות.';
   static const conflictDog = 'אחד הכלבים כבר מוזמן בתאריכים אלו';
   static const conflictKennel = 'הכלוב כבר תפוס בתאריכים אלו';
+  static const sameDayTurnoverTitle = 'שים לב';
+  static const sameDayTurnoverMessage =
+      'בתא שבחרת יש כלב אחר שמתוכנן לצאת באותו היום. האם להמשיך בכל זאת?';
+  static const continueAction = 'המשך';
   static const missingContract = 'חסר חוזה!';
   static const snapContract = 'צלם חוזה';
   static const retakeContract = 'צלם מחדש';

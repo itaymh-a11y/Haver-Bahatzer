@@ -206,7 +206,7 @@ class _StatsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<BookingProvider>();
     final totalDays = provider.totalBoardingDaysForDog(dog.id);
-    final totalPaid = provider.totalPaidAmountForDog(dog.id, dog.dailyRate);
+    final totalPaid = provider.totalPaidAmountForDog(dog.id);
     final distribution = provider.kennelDistributionForDog(dog.id);
 
     if (totalDays == 0) {

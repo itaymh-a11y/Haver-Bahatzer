@@ -18,6 +18,28 @@ class _BookingListScreenState extends State<BookingListScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
 
+  List<Booking> _sortByCheckoutDate(List<Booking> items) {
+    final sorted = [...items];
+    sorted.sort((a, b) => a.endDate.compareTo(b.endDate));
+    return sorted;
+  }
+
+  int _paymentPriority(Booking b) {
+    if (b.remainingAmount <= 0.01) return 2; // fully paid
+    if (b.paidAmount > 0) return 1; // partially paid
+    return 0; // unpaid
+  }
+
+  List<Booking> _sortCompleted(List<Booking> items) {
+    final sorted = [...items];
+    sorted.sort((a, b) {
+      final priorityCompare = _paymentPriority(a).compareTo(_paymentPriority(b));
+      if (priorityCompare != 0) return priorityCompare;
+      return a.endDate.compareTo(b.endDate);
+    });
+    return sorted;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -49,9 +71,9 @@ class _BookingListScreenState extends State<BookingListScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _BookingList(bookings: provider.completedBookings),
-          _BookingList(bookings: provider.activeBookings),
-          _BookingList(bookings: provider.upcomingBookings),
+          _BookingList(bookings: _sortCompleted(provider.completedBookings)),
+          _BookingList(bookings: _sortByCheckoutDate(provider.activeBookings)),
+          _BookingList(bookings: _sortByCheckoutDate(provider.upcomingBookings)),
         ],
       ),
       floatingActionButton: FloatingActionButton(
