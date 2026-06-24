@@ -3,9 +3,11 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/constants/kennel_constants.dart';
 import '../../models/booking_model.dart';
 import '../../providers/booking_provider.dart';
 import '../../providers/dog_provider.dart';
+import '../../providers/vacation_provider.dart';
 import '../../widgets/bookings/dog_multi_selector.dart';
 import '../../widgets/bookings/kennel_selector.dart';
 import '../../widgets/common/app_button.dart';
@@ -42,6 +44,9 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   late bool _chargeCheckoutDay;
   late bool _hasRateChange;
   DateTime? _rateChangeStartDate;
+  late bool _hasKennelChange;
+  DateTime? _kennelChangeStartDate;
+  String? _kennelChangeKennelId;
   late bool _isPaid;
   late bool _splitPayment;
   DateTime? _paymentDate;
@@ -71,6 +76,9 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
     _chargeCheckoutDay = b?.chargeCheckoutDay ?? true;
     _hasRateChange = b?.rateChangeStartDate != null && b?.rateChangeDailyRate != null;
     _rateChangeStartDate = b?.rateChangeStartDate;
+    _hasKennelChange = b?.hasKennelChange ?? false;
+    _kennelChangeStartDate = b?.kennelChangeStartDate;
+    _kennelChangeKennelId = b?.kennelChangeKennelId;
     _isPaid = b?.isPaid ?? false;
     _splitPayment = false;
     _paymentDate = DateTime.now();
@@ -131,6 +139,37 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
       _rateChangeStartDate = picked;
       _recalcPrice();
     });
+  }
+
+  Future<void> _pickKennelChangeDate() async {
+    final firstChangeDay = _startDate.add(const Duration(days: 1));
+    if (firstChangeDay.isAfter(_endDate)) return;
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _kennelChangeStartDate ?? firstChangeDay,
+      firstDate: firstChangeDay,
+      lastDate: _endDate,
+      locale: const Locale('he', 'IL'),
+    );
+    if (picked == null) return;
+    setState(() => _kennelChangeStartDate = picked);
+  }
+
+  void _clampKennelChangeDate() {
+    if (_kennelChangeStartDate == null) return;
+    final firstChangeDay = _startDate.add(const Duration(days: 1));
+    if (firstChangeDay.isAfter(_endDate)) {
+      _kennelChangeStartDate = null;
+      _hasKennelChange = false;
+      _kennelChangeKennelId = null;
+      return;
+    }
+    if (_kennelChangeStartDate!.isBefore(firstChangeDay)) {
+      _kennelChangeStartDate = firstChangeDay;
+    } else if (_kennelChangeStartDate!.isAfter(_endDate)) {
+      _kennelChangeStartDate = _endDate;
+    }
   }
 
   Future<void> _editPaymentAt(int index) async {
@@ -252,6 +291,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
           _rateChangeStartDate = _endDate;
         }
       }
+      _clampKennelChangeDate();
     });
     _recalcPrice();
   }
@@ -310,6 +350,36 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final vacationProvider = context.read<VacationProvider>();
+
+    if (_selectedType == BookingType.boarding) {
+      if (vacationProvider.boardingRangeBlocked(_startDate, _endDate)) {
+        if (mounted) showErrorSnackbar(context, AppStrings.conflictVacation);
+        return;
+      }
+    } else if (_selectedType == BookingType.introMeeting) {
+      if (vacationProvider.isDayBlocked(_startDate)) {
+        final continueAnyway = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text(AppStrings.introDuringVacationTitle),
+            content: const Text(AppStrings.introDuringVacationMessage),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text(AppStrings.cancel),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text(AppStrings.continueAction),
+              ),
+            ],
+          ),
+        );
+        if (continueAnyway != true) return;
+      }
+    }
+
     final provider = context.read<BookingProvider>();
 
     // Conflict detection
@@ -325,10 +395,66 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
     }
 
     if (_selectedType == BookingType.boarding && _selectedKennelId != null) {
+      if (_hasKennelChange) {
+        if (_kennelChangeStartDate == null ||
+            !_kennelChangeStartDate!.isAfter(_startDate)) {
+          if (mounted) {
+            showErrorSnackbar(context, AppStrings.kennelChangeDateInvalid);
+          }
+          return;
+        }
+        if (_kennelChangeKennelId == null ||
+            _kennelChangeKennelId == _selectedKennelId) {
+          if (mounted) {
+            showErrorSnackbar(context, AppStrings.kennelChangeSameKennel);
+          }
+          return;
+        }
+      }
+
+      final kennelsToCheck = <String>{_selectedKennelId!};
+      if (_hasKennelChange && _kennelChangeKennelId != null) {
+        kennelsToCheck.add(_kennelChangeKennelId!);
+      }
+
+      for (final kennelId in kennelsToCheck) {
+        final kennel = KennelConstants.findById(kennelId);
+        if (kennel == null) continue;
+
+        if (_selectedDogIds.length > kennel.maxDogs) {
+          if (mounted) {
+            showErrorSnackbar(
+              context,
+              AppStrings.kennelMaxDogsExceeded(kennel.maxDogs),
+            );
+          }
+          return;
+        }
+
+        if (kennel.sameOwnerRequired && _selectedDogIds.length > 1) {
+          final dogs = context.read<DogProvider>().dogs;
+          final ownerPhones = dogs
+              .where((d) => _selectedDogIds.contains(d.id))
+              .map((d) => d.ownerPhone)
+              .toSet();
+          if (ownerPhones.length > 1) {
+            if (mounted) {
+              showErrorSnackbar(context, AppStrings.conflictSameOwner);
+            }
+            return;
+          }
+        }
+      }
+
       final kennelConflict = provider.checkKennelConflict(
-        _selectedKennelId!,
-        _startDate,
-        _endDate,
+        dogIds: _selectedDogIds,
+        start: _startDate,
+        end: _endDate,
+        kennelId: _selectedKennelId,
+        kennelChangeStartDate:
+            _hasKennelChange ? _kennelChangeStartDate : null,
+        kennelChangeKennelId:
+            _hasKennelChange ? _kennelChangeKennelId : null,
         excludeId: widget.booking?.id,
       );
       if (kennelConflict != null) {
@@ -336,9 +462,13 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         return;
       }
 
-      final hasSameDayCheckout = provider.hasSameDayCheckoutInKennel(
-        _selectedKennelId!,
-        _startDate,
+      final hasSameDayCheckout = provider.hasSameDayTurnoverWarning(
+        kennelId: _selectedKennelId,
+        start: _startDate,
+        kennelChangeStartDate:
+            _hasKennelChange ? _kennelChangeStartDate : null,
+        kennelChangeKennelId:
+            _hasKennelChange ? _kennelChangeKennelId : null,
         excludeId: widget.booking?.id,
       );
       if (hasSameDayCheckout) {
@@ -455,6 +585,10 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         dogIds: _selectedDogIds,
         type: _selectedType,
         kennelId: _selectedType == BookingType.boarding ? _selectedKennelId : null,
+        kennelChangeStartDate:
+            _hasKennelChange ? _kennelChangeStartDate : null,
+        kennelChangeKennelId:
+            _hasKennelChange ? _kennelChangeKennelId : null,
         startDate: _startDate,
         endDate: _selectedType == BookingType.boarding ? _endDate : _startDate,
         meetingTime: _selectedType == BookingType.introMeeting ? meetingTimeStr : null,
@@ -485,6 +619,10 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         dogIds: _selectedDogIds,
         type: _selectedType,
         kennelId: _selectedType == BookingType.boarding ? _selectedKennelId : null,
+        kennelChangeStartDate:
+            _hasKennelChange ? _kennelChangeStartDate : null,
+        kennelChangeKennelId:
+            _hasKennelChange ? _kennelChangeKennelId : null,
         startDate: _startDate,
         endDate: _selectedType == BookingType.boarding ? _endDate : _startDate,
         meetingTime: _selectedType == BookingType.introMeeting ? meetingTimeStr : null,
@@ -611,6 +749,9 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
               // Dog selector
               DogMultiSelector(
                 selectedDogIds: _selectedDogIds,
+                selectedKennelId: _selectedType == BookingType.boarding
+                    ? _selectedKennelId
+                    : null,
                 onChanged: (ids) {
                   setState(() => _selectedDogIds = ids);
                   _recalcPrice();
@@ -622,6 +763,9 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
               if (_selectedType == BookingType.boarding) ...[
                 KennelSelector(
                   selectedKennelId: _selectedKennelId,
+                  labelText: _hasKennelChange
+                      ? AppStrings.initialKennel
+                      : AppStrings.kennel,
                   onChanged: (id) => setState(() => _selectedKennelId = id),
                 ),
                 const SizedBox(height: 16),
@@ -638,6 +782,41 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                   dateFormat: _dateFormat,
                   onTap: () => _pickDate(isStart: false),
                 ),
+                SwitchListTile.adaptive(
+                  value: _hasKennelChange,
+                  onChanged: (v) => setState(() {
+                    _hasKennelChange = v;
+                    if (!v) {
+                      _kennelChangeStartDate = null;
+                      _kennelChangeKennelId = null;
+                    } else {
+                      final firstChangeDay =
+                          _startDate.add(const Duration(days: 1));
+                      if (!firstChangeDay.isAfter(_endDate)) {
+                        _kennelChangeStartDate ??= firstChangeDay;
+                      }
+                    }
+                  }),
+                  title: const Text(AppStrings.changeKennelMidStay),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                if (_hasKennelChange) ...[
+                  _DateTile(
+                    label: AppStrings.kennelChangeStartDate,
+                    date: _kennelChangeStartDate ??
+                        _startDate.add(const Duration(days: 1)),
+                    dateFormat: _dateFormat,
+                    onTap: _pickKennelChangeDate,
+                  ),
+                  const SizedBox(height: 12),
+                  KennelSelector(
+                    selectedKennelId: _kennelChangeKennelId,
+                    labelText: AppStrings.newKennel,
+                    onChanged: (id) =>
+                        setState(() => _kennelChangeKennelId = id),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 SwitchListTile.adaptive(
                   value: _chargeCheckoutDay,
                   onChanged: (v) => setState(() {

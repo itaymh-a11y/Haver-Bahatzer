@@ -28,8 +28,12 @@ class _OccupancyBarState extends State<OccupancyBar> {
 
     // Sort bookings by KennelConstants.all order for consistent display
     final sortedOccupied = [...occupied]..sort((a, b) {
-        final ai = KennelConstants.all.indexWhere((k) => k.id == a.kennelId);
-        final bi = KennelConstants.all.indexWhere((k) => k.id == b.kennelId);
+        final today = DateTime.now();
+        final todayDate = DateTime(today.year, today.month, today.day);
+        final aKennel = a.kennelIdForDate(todayDate) ?? '';
+        final bKennel = b.kennelIdForDate(todayDate) ?? '';
+        final ai = KennelConstants.all.indexWhere((k) => k.id == aKennel);
+        final bi = KennelConstants.all.indexWhere((k) => k.id == bKennel);
         return ai.compareTo(bi);
       });
 
@@ -97,7 +101,14 @@ class _OccupancyBarState extends State<OccupancyBar> {
                             const Divider(height: 1),
                             const SizedBox(height: 12),
                             ...sortedOccupied.map((booking) {
-                              final kennel = KennelConstants.findById(booking.kennelId!);
+                              final today = DateTime.now();
+                              final todayDate =
+                                  DateTime(today.year, today.month, today.day);
+                              final currentKennelId =
+                                  booking.kennelIdForDate(todayDate);
+                              final kennel = currentKennelId != null
+                                  ? KennelConstants.findById(currentKennelId)
+                                  : null;
                               final dogNames = booking.dogIds
                                   .map((id) {
                                     final idx = dogs.indexWhere((d) => d.id == id);
@@ -114,7 +125,7 @@ class _OccupancyBarState extends State<OccupancyBar> {
                                         size: 18, color: AppColors.primary),
                                     const SizedBox(width: 8),
                                     Text(
-                                      kennel?.hebrewName ?? booking.kennelId!,
+                                      kennel?.hebrewName ?? currentKennelId ?? '—',
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w600,
                                         fontSize: 14,

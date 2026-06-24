@@ -18,6 +18,10 @@ class StorageService {
     return _upload(bytes, folder: 'contracts');
   }
 
+  Future<String> uploadProductPhoto(String productId, Uint8List bytes) async {
+    return _upload(bytes, folder: 'products');
+  }
+
   Future<void> deleteDogPhoto(String dogId) async {
     // Cloudinary deletion requires a signed request (server-side).
     // For a client app, simply leave the old image — it won't incur

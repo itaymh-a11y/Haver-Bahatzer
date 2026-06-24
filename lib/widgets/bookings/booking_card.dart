@@ -51,6 +51,14 @@ class BookingCard extends StatelessWidget {
     final kennelInfo = booking.kennelId != null
         ? KennelConstants.findById(booking.kennelId!)
         : null;
+    final changeKennelInfo = booking.hasKennelChange
+        ? KennelConstants.findById(booking.kennelChangeKennelId!)
+        : null;
+    final kennelLabel = kennelInfo == null
+        ? null
+        : booking.hasKennelChange && changeKennelInfo != null
+            ? '${kennelInfo.hebrewName} → ${changeKennelInfo.hebrewName}'
+            : kennelInfo.hebrewName;
 
     return Card(
       clipBehavior: Clip.hardEdge,
@@ -115,13 +123,13 @@ class BookingCard extends StatelessWidget {
                             .bodySmall
                             ?.copyWith(color: AppColors.textSecondary),
                       ),
-                      if (kennelInfo != null) ...[
+                      if (kennelLabel != null) ...[
                         const SizedBox(width: 8),
                         const Text('•',
                             style: TextStyle(color: AppColors.textSecondary)),
                         const SizedBox(width: 8),
                         Text(
-                          kennelInfo.hebrewName,
+                          kennelLabel,
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall

@@ -18,8 +18,8 @@ class KennelConstants {
   static const largeCabin = KennelInfo(
     id: 'large_cabin',
     hebrewName: 'ביתן גדול',
-    maxDogs: 3,
-    sameOwnerRequired: true,
+    maxDogs: 5,
+    sameOwnerRequired: false,
   );
 
   static const doubleKennel = KennelInfo(

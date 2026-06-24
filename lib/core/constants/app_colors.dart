@@ -24,6 +24,7 @@ class AppColors {
   static const contractAlert = Color(0xFFD32F2F);    // red
   static const boardingDot = Color(0xFF2E7D32);      // green dot on calendar
   static const introMeetingDot = Color(0xFFF9A825);  // amber dot on calendar
+  static const vacationDay = Color(0xFF9E9E9E);     // blocked vacation days
 
   // Tag colors
   static const tagAggressive = Color(0xFFFFCDD2);

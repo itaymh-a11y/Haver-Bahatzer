@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../core/constants/app_strings.dart';
+import '../core/constants/kennel_constants.dart';
 import '../core/utils/image_utils.dart';
 import '../models/booking_model.dart';
+import '../models/vacation_model.dart';
 import '../services/booking_service.dart';
 import '../services/storage_service.dart';
 
@@ -89,6 +91,21 @@ class BookingProvider extends ChangeNotifier {
       final start = DateTime(b.startDate.year, b.startDate.month, b.startDate.day);
       final end = DateTime(b.endDate.year, b.endDate.month, b.endDate.day);
       return !d.isBefore(start) && !d.isAfter(end);
+    }).toList();
+  }
+
+  List<Booking> boardingBookingsOverlappingRange(
+    DateTime start,
+    DateTime end,
+  ) {
+    return _bookings.where((b) {
+      if (b.type != BookingType.boarding) return false;
+      return VacationPeriod.rangesOverlap(
+        b.startDate,
+        b.endDate,
+        start,
+        end,
+      );
     }).toList();
   }
 
@@ -200,8 +217,9 @@ class BookingProvider extends ChangeNotifier {
   Map<String, int> kennelDistributionForDog(String dogId) {
     final counts = <String, int>{};
     for (final b in boardingBookingsForDog(dogId)) {
-      if (b.kennelId == null) continue;
-      counts[b.kennelId!] = (counts[b.kennelId!] ?? 0) + b.numberOfDays;
+      for (final entry in b.kennelDayCounts().entries) {
+        counts[entry.key] = (counts[entry.key] ?? 0) + entry.value;
+      }
     }
     return counts;
   }
@@ -249,37 +267,98 @@ class BookingProvider extends ChangeNotifier {
     return null;
   }
 
-  String? checkKennelConflict(
-    String kennelId,
-    DateTime start,
-    DateTime end, {
+  String? checkKennelConflict({
+    required List<String> dogIds,
+    required DateTime start,
+    required DateTime end,
+    required String? kennelId,
+    DateTime? kennelChangeStartDate,
+    String? kennelChangeKennelId,
     String? excludeId,
   }) {
-    for (final booking in _bookings) {
-      if (booking.id == excludeId) continue;
-      if (booking.type == BookingType.introMeeting) continue;
-      if (booking.kennelId != kennelId) continue;
+    if (kennelId == null) return null;
 
-      final sameDayTurnover = _sameDay(start, booking.endDate);
-      if (sameDayTurnover) continue;
+    final rangeStart = _dateOnly(start);
+    final rangeEnd = _dateOnly(end);
 
-      final hasOverlap = !end.isBefore(booking.startDate) &&
-          !booking.endDate.isBefore(start);
-      if (hasOverlap) return AppStrings.conflictKennel;
+    for (var day = rangeStart;
+        !day.isAfter(rangeEnd);
+        day = day.add(const Duration(days: 1))) {
+      final dayKennelId = _kennelIdForDay(
+        kennelId: kennelId,
+        kennelChangeStartDate: kennelChangeStartDate,
+        kennelChangeKennelId: kennelChangeKennelId,
+        day: day,
+      );
+      if (dayKennelId == null) continue;
+
+      final kennel = KennelConstants.findById(dayKennelId);
+      if (kennel == null) continue;
+
+      if (dogIds.length > kennel.maxDogs) {
+        return AppStrings.kennelMaxDogsExceeded(kennel.maxDogs);
+      }
+
+      var count = dogIds.length;
+
+      for (final booking in _bookings) {
+        if (booking.id == excludeId) continue;
+        if (booking.type == BookingType.introMeeting) continue;
+        if (booking.kennelId == null) continue;
+        if (!_dayInBooking(day, booking)) continue;
+
+        final existingKennelId = booking.kennelIdForDate(day);
+        if (existingKennelId != dayKennelId) continue;
+
+        if (kennel.maxDogs == 1 &&
+            _sameDay(day, start) &&
+            _sameDay(booking.endDate, day)) {
+          continue;
+        }
+
+        count += booking.dogIds.length;
+      }
+
+      if (count > kennel.maxDogs) return AppStrings.conflictKennel;
     }
     return null;
   }
 
-  bool hasSameDayCheckoutInKennel(
+  bool hasSameDayTurnoverWarning({
+    required String? kennelId,
+    required DateTime start,
+    DateTime? kennelChangeStartDate,
+    String? kennelChangeKennelId,
+    String? excludeId,
+  }) {
+    if (kennelId != null &&
+        _hasSameDayCheckoutInKennel(kennelId, start, excludeId: excludeId)) {
+      return true;
+    }
+    if (kennelChangeStartDate != null &&
+        kennelChangeKennelId != null &&
+        _hasSameDayCheckoutInKennel(
+          kennelChangeKennelId,
+          kennelChangeStartDate,
+          excludeId: excludeId,
+        )) {
+      return true;
+    }
+    return false;
+  }
+
+  bool _hasSameDayCheckoutInKennel(
     String kennelId,
-    DateTime start, {
+    DateTime day, {
     String? excludeId,
   }) {
     for (final booking in _bookings) {
       if (booking.id == excludeId) continue;
       if (booking.type == BookingType.introMeeting) continue;
-      if (booking.kennelId != kennelId) continue;
-      if (_sameDay(start, booking.endDate)) return true;
+      if (booking.kennelId == null) continue;
+      if (!_sameDay(day, booking.endDate)) continue;
+      if (booking.kennelIdForDate(booking.endDate) != kennelId) continue;
+      return true;
     }
     return false;
   }
@@ -370,4 +449,30 @@ class BookingProvider extends ChangeNotifier {
 
   bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+
+  DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  String? _kennelIdForDay({
+    required String? kennelId,
+    required DateTime? kennelChangeStartDate,
+    required String? kennelChangeKennelId,
+    required DateTime day,
+  }) {
+    if (kennelId == null) return null;
+    if (kennelChangeStartDate != null &&
+        kennelChangeKennelId != null &&
+        kennelChangeKennelId.isNotEmpty) {
+      final d = _dateOnly(day);
+      final changeStart = _dateOnly(kennelChangeStartDate);
+      if (!d.isBefore(changeStart)) return kennelChangeKennelId;
+    }
+    return kennelId;
+  }
+
+  bool _dayInBooking(DateTime day, Booking booking) {
+    final d = _dateOnly(day);
+    final start = _dateOnly(booking.startDate);
+    final end = _dateOnly(booking.endDate);
+    return !d.isBefore(start) && !d.isAfter(end);
+  }
 }

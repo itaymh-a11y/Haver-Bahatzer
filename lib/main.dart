@@ -11,12 +11,16 @@ import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/booking_provider.dart';
 import 'providers/dog_provider.dart';
+import 'providers/pension_provider.dart';
 import 'providers/tag_provider.dart';
+import 'providers/vacation_provider.dart';
 import 'services/auth_service.dart';
 import 'services/booking_service.dart';
 import 'services/firestore_service.dart';
 import 'services/storage_service.dart';
+import 'services/pension_service.dart';
 import 'services/tag_service.dart';
+import 'services/vacation_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,6 +53,8 @@ void main() async {
         Provider<StorageService>(create: (_) => StorageService()),
         Provider<BookingService>(create: (_) => BookingService()),
         Provider<TagService>(create: (_) => tagService),
+        Provider<VacationService>(create: (_) => VacationService()),
+        Provider<PensionService>(create: (_) => PensionService()),
         ChangeNotifierProvider<AuthProvider>(
           create: (ctx) => AuthProvider(ctx.read<AuthService>()),
         ),
@@ -72,6 +78,19 @@ void main() async {
           ),
           update: (ctx, service, storage, previous) =>
               previous ?? BookingProvider(service, storage),
+        ),
+        ChangeNotifierProxyProvider<VacationService, VacationProvider>(
+          create: (ctx) => VacationProvider(ctx.read<VacationService>())..startListening(),
+          update: (ctx, service, previous) =>
+              previous ?? (VacationProvider(service)..startListening()),
+        ),
+        ChangeNotifierProxyProvider2<PensionService, StorageService, PensionProvider>(
+          create: (ctx) => PensionProvider(
+            ctx.read<PensionService>(),
+            ctx.read<StorageService>(),
+          ),
+          update: (ctx, service, storage, previous) =>
+              previous ?? PensionProvider(service, storage),
         ),
       ],
       child: const HaverBahatzerApp(),

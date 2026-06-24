@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/constants/kennel_constants.dart';
 import '../../providers/dog_provider.dart';
 
 class DogMultiSelector extends StatefulWidget {
   final List<String> selectedDogIds;
   final ValueChanged<List<String>> onChanged;
+  final String? selectedKennelId;
 
   const DogMultiSelector({
     super.key,
     required this.selectedDogIds,
     required this.onChanged,
+    this.selectedKennelId,
   });
 
   @override
@@ -32,14 +35,19 @@ class _DogMultiSelectorState extends State<DogMultiSelector> {
   Widget build(BuildContext context) {
     final dogs = context.watch<DogProvider>().dogs;
     final selectedDogIds = widget.selectedDogIds;
+    final kennel = widget.selectedKennelId != null
+        ? KennelConstants.findById(widget.selectedKennelId!)
+        : null;
+    final sameOwnerRequired = kennel?.sameOwnerRequired ?? false;
+    final maxDogs = kennel?.maxDogs;
 
-    // Determine locked owner: once any dog is selected, only dogs from
-    // the same owner are selectable.
     String? lockedOwnerPhone;
-    for (final dog in dogs) {
-      if (selectedDogIds.contains(dog.id)) {
-        lockedOwnerPhone = dog.ownerPhone;
-        break;
+    if (sameOwnerRequired) {
+      for (final dog in dogs) {
+        if (selectedDogIds.contains(dog.id)) {
+          lockedOwnerPhone = dog.ownerPhone;
+          break;
+        }
       }
     }
 
@@ -112,8 +120,10 @@ class _DogMultiSelectorState extends State<DogMultiSelector> {
                   ...visibleDogs.map((dog) {
                     final isSelected = selectedDogIds.contains(dog.id);
                     final isDisabled = !isSelected &&
-                        lockedOwnerPhone != null &&
-                        dog.ownerPhone != lockedOwnerPhone;
+                        ((lockedOwnerPhone != null &&
+                                dog.ownerPhone != lockedOwnerPhone) ||
+                            (maxDogs != null &&
+                                selectedDogIds.length >= maxDogs));
                     return FilterChip(
                       label: Text(
                         '${dog.name} • ${dog.ownerName}',

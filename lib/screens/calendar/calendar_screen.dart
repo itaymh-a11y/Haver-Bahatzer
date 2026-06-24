@@ -7,8 +7,10 @@ import '../../core/constants/kennel_constants.dart';
 import '../../models/booking_model.dart';
 import '../../providers/booking_provider.dart';
 import '../../providers/dog_provider.dart';
+import '../../providers/vacation_provider.dart';
 import '../../widgets/bookings/booking_card.dart';
 import '../bookings/booking_form_screen.dart';
+import 'vacations_screen.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -36,13 +38,25 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<BookingProvider>();
+    final vacationProvider = context.watch<VacationProvider>();
     final dogProvider = context.watch<DogProvider>();
     final selectedBookings = provider.getBookingsForDay(_selectedDay);
+    final isSelectedDayVacation = vacationProvider.isDayBlocked(_selectedDay);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text(AppStrings.calendar),
         actions: [
+          IconButton(
+            tooltip: AppStrings.vacations,
+            icon: const Icon(Icons.beach_access_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => VacationsScreen(initialStartDate: _selectedDay),
+              ),
+            ),
+          ),
           IconButton(
             tooltip: _isWeekView ? 'חזרה לתצוגת חודש' : 'זום שבועי',
             icon: Icon(_isWeekView ? Icons.zoom_out_map : Icons.zoom_in_map),
@@ -78,6 +92,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
               markersMaxCount: 2,
             ),
             calendarBuilders: CalendarBuilders(
+              defaultBuilder: (context, day, focusedDay) =>
+                  _buildVacationDay(context, day, vacationProvider),
+              todayBuilder: (context, day, focusedDay) =>
+                  _buildVacationDay(context, day, vacationProvider, isToday: true),
+              selectedBuilder: (context, day, focusedDay) =>
+                  _buildVacationDay(context, day, vacationProvider, isSelected: true),
               markerBuilder: (context, day, events) {
                 if (events.isEmpty) return null;
 
@@ -130,11 +150,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     weekDays: _weekDays(_focusedDay),
                     bookingProvider: provider,
                     dogProvider: dogProvider,
+                    vacationProvider: vacationProvider,
                   )
                 : selectedBookings.isEmpty
                     ? Center(
                         child: Text(
-                          AppStrings.noBookings,
+                          isSelectedDayVacation
+                              ? AppStrings.vacationDay
+                              : AppStrings.noBookings,
                           style: Theme.of(context)
                               .textTheme
                               .bodyLarge
@@ -162,17 +185,58 @@ class _CalendarScreenState extends State<CalendarScreen> {
       ),
     );
   }
+
+  Widget? _buildVacationDay(
+    BuildContext context,
+    DateTime day,
+    VacationProvider vacationProvider, {
+    bool isSelected = false,
+    bool isToday = false,
+  }) {
+    if (!vacationProvider.isDayBlocked(day)) return null;
+
+    final Color fill;
+    final Color textColor;
+    if (isSelected) {
+      fill = AppColors.primary.withValues(alpha: 0.85);
+      textColor = Colors.white;
+    } else if (isToday) {
+      fill = AppColors.vacationDay.withValues(alpha: 0.35);
+      textColor = AppColors.onSurface;
+    } else {
+      fill = AppColors.vacationDay.withValues(alpha: 0.22);
+      textColor = AppColors.onSurface;
+    }
+
+    return Container(
+      margin: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: fill,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isSelected ? AppColors.primary : AppColors.vacationDay,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        '${day.day}',
+        style: TextStyle(color: textColor),
+      ),
+    );
+  }
 }
 
 class _WeekKennelView extends StatelessWidget {
   final List<DateTime> weekDays;
   final BookingProvider bookingProvider;
   final DogProvider dogProvider;
+  final VacationProvider vacationProvider;
 
   const _WeekKennelView({
     required this.weekDays,
     required this.bookingProvider,
     required this.dogProvider,
+    required this.vacationProvider,
   });
 
   @override
@@ -199,11 +263,15 @@ class _WeekKennelView extends StatelessWidget {
                       .getBookingsForDay(day)
                       .where((b) => b.type == BookingType.boarding)
                       .toList();
+                  final isVacation = vacationProvider.isDayBlocked(day);
 
                   return SizedBox(
                     width: dayColumnWidth,
                     child: Card(
                       margin: const EdgeInsets.symmetric(horizontal: 4),
+                      color: isVacation
+                          ? AppColors.vacationDay.withValues(alpha: 0.08)
+                          : null,
                       child: Padding(
                         padding: const EdgeInsets.all(10),
                         child: Column(
@@ -215,10 +283,22 @@ class _WeekKennelView extends StatelessWidget {
                                     fontWeight: FontWeight.bold,
                                   ),
                             ),
+                            if (isVacation) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                AppStrings.vacationDay,
+                                style: TextStyle(
+                                  color: AppColors.vacationDay.withValues(alpha: 0.9),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 8),
                             ...KennelConstants.all.map((kennel) {
                               final kennelBookings = dayBookings
-                                  .where((b) => b.kennelId == kennel.id)
+                                  .where((b) =>
+                                      b.kennelIdForDate(day) == kennel.id)
                                   .toList();
                               final dogIds = <String>{};
                               for (final b in kennelBookings) {

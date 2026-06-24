@@ -100,6 +100,8 @@ class Booking {
   final List<String> dogIds;
   final BookingType type;
   final String? kennelId;
+  final DateTime? kennelChangeStartDate;
+  final String? kennelChangeKennelId;
   final DateTime startDate;
   final DateTime endDate;
   final String? meetingTime;
@@ -120,6 +122,8 @@ class Booking {
     required this.dogIds,
     required this.type,
     this.kennelId,
+    this.kennelChangeStartDate,
+    this.kennelChangeKennelId,
     required this.startDate,
     required this.endDate,
     this.meetingTime,
@@ -182,6 +186,35 @@ class Booking {
     return raw < 1 ? 1 : raw;
   }
 
+  bool get hasKennelChange =>
+      kennelChangeStartDate != null &&
+      kennelChangeKennelId != null &&
+      kennelChangeKennelId!.isNotEmpty;
+
+  static DateTime dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  String? kennelIdForDate(DateTime day) {
+    if (kennelId == null) return null;
+    if (hasKennelChange) {
+      final d = dateOnly(day);
+      final changeStart = dateOnly(kennelChangeStartDate!);
+      if (!d.isBefore(changeStart)) return kennelChangeKennelId;
+    }
+    return kennelId;
+  }
+
+  Map<String, int> kennelDayCounts() {
+    final counts = <String, int>{};
+    if (kennelId == null) return counts;
+    final start = dateOnly(startDate);
+    final end = dateOnly(endDate);
+    for (var d = start; !d.isAfter(end); d = d.add(const Duration(days: 1))) {
+      final kid = kennelIdForDate(d);
+      if (kid != null) counts[kid] = (counts[kid] ?? 0) + 1;
+    }
+    return counts;
+  }
+
   factory Booking.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final dogIdsList = (data['dogIds'] as List<dynamic>? ?? [])
@@ -194,6 +227,9 @@ class Booking {
       type: BookingTypeExtension.fromFirestoreValue(
           data['type'] as String? ?? 'boarding'),
       kennelId: data['kennelId'] as String?,
+      kennelChangeStartDate:
+          (data['kennelChangeStartDate'] as Timestamp?)?.toDate(),
+      kennelChangeKennelId: data['kennelChangeKennelId'] as String?,
       startDate:
           (data['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       endDate: (data['endDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -219,6 +255,10 @@ class Booking {
       'dogIds': dogIds,
       'type': type.firestoreValue,
       'kennelId': kennelId,
+      'kennelChangeStartDate': kennelChangeStartDate != null
+          ? Timestamp.fromDate(kennelChangeStartDate!)
+          : null,
+      'kennelChangeKennelId': kennelChangeKennelId,
       'startDate': Timestamp.fromDate(startDate),
       'endDate': Timestamp.fromDate(endDate),
       'meetingTime': meetingTime,
@@ -244,6 +284,8 @@ class Booking {
     List<String>? dogIds,
     BookingType? type,
     String? kennelId,
+    Object? kennelChangeStartDate = _sentinel,
+    Object? kennelChangeKennelId = _sentinel,
     DateTime? startDate,
     DateTime? endDate,
     String? meetingTime,
@@ -264,6 +306,12 @@ class Booking {
       dogIds: dogIds ?? this.dogIds,
       type: type ?? this.type,
       kennelId: kennelId ?? this.kennelId,
+      kennelChangeStartDate: kennelChangeStartDate == _sentinel
+          ? this.kennelChangeStartDate
+          : kennelChangeStartDate as DateTime?,
+      kennelChangeKennelId: kennelChangeKennelId == _sentinel
+          ? this.kennelChangeKennelId
+          : kennelChangeKennelId as String?,
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
       meetingTime: meetingTime ?? this.meetingTime,

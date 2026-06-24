@@ -70,6 +70,23 @@ class AppStrings {
   static const addBooking = 'הוסף הזמנה';
   static const editBooking = 'ערוך הזמנה';
   static const calendar = 'לוח שנה';
+  static const vacations = 'חופשות';
+  static const addVacation = 'הוסף חופשה';
+  static const editVacation = 'ערוך חופשה';
+  static const vacationLabel = 'שם החופשה (אופציונלי)';
+  static const noVacations = 'אין חופשות מתוכננות';
+  static const noVacationsSubtitle = 'לחץ על + כדי לחסום תאריכים לאירוח';
+  static const vacationDay = 'יום חופשה';
+  static const confirmDeleteVacation = 'למחוק את החופשה?';
+  static const vacationOverlapBookingsTitle = 'יש הזמנות אירוח בטווח זה';
+  static const vacationOverlapBookingsMessage =
+      'בתאריכים שבחרת כבר קיימות הזמנות אירוח. האם ליצור את החופשה בכל זאת?';
+  static const conflictVacation =
+      'לא ניתן לשבץ אירוח בתאריכי חופשה';
+  static const introDuringVacationTitle = 'שים לב — יום חופשה';
+  static const introDuringVacationMessage =
+      'תאריך הפגישה נופל על ימי חופשה. האם לשמור את פגישת ההיכרות בכל זאת?';
+  static const createVacationAnyway = 'צור חופשה';
   static const bookingType = 'סוג הזמנה';
   static const boarding = 'אירוח';
   static const introMeeting = 'פגישת היכרות';
@@ -92,6 +109,13 @@ class AppStrings {
   static const bookingDailyRate = 'מחיר יומי להזמנה';
   static const changeDailyRateMidStay = 'שינוי מחיר יומי באמצע השהייה';
   static const newDailyRate = 'מחיר יומי חדש';
+  static const changeKennelMidStay = 'העברת כלוב במהלך השהות';
+  static const kennelChangeStartDate = 'תאריך מעבר';
+  static const newKennel = 'כלוב חדש';
+  static const initialKennel = 'כלוב בהתחלה';
+  static const kennelChangeDateInvalid =
+      'תאריך המעבר חייב להיות אחרי תאריך הכניסה';
+  static const kennelChangeSameKennel = 'יש לבחור כלוב שונה מהכלוב הראשוני';
   static const rateChangeStartDate = 'החל מתאריך';
   static const paymentMethod = 'אמצעי תשלום';
   static const bit = 'ביט';
@@ -111,7 +135,12 @@ class AppStrings {
   static const bookingDeleted = 'ההזמנה נמחקה בהצלחה';
   static const confirmDeleteBooking = 'פעולה זו תמחק את ההזמנה לצמיתות.';
   static const conflictDog = 'אחד הכלבים כבר מוזמן בתאריכים אלו';
-  static const conflictKennel = 'הכלוב כבר תפוס בתאריכים אלו';
+  static const conflictKennel = 'הכלוב מלא בתאריכים אלו';
+  static const conflictSameOwner =
+      'בכלוב זה ניתן לארח כלבים מאותו בעלים בלבד';
+
+  static String kennelMaxDogsExceeded(int max) =>
+      'ניתן לבחור עד $max כלבים בכלוב זה';
   static const sameDayTurnoverTitle = 'שים לב';
   static const sameDayTurnoverMessage =
       'בתא שבחרת יש כלב אחר שמתוכנן לצאת באותו היום. האם להמשיך בכל זאת?';
@@ -128,6 +157,36 @@ class AppStrings {
 
   // Financials
   static const financials = 'דוחות כספיים';
+
+  // Pension products
+  static const pensionProducts = 'מוצרי פנסיון';
+  static const productLibrary = 'ספריית מוצרים';
+  static const supplierOrders = 'הזמנות לספק';
+  static const addProduct = 'הוסף מוצר';
+  static const editProduct = 'ערוך מוצר';
+  static const productName = 'שם המוצר';
+  static const productPrice = 'מחיר ליחידה';
+  static const noProducts = 'אין מוצרים בספרייה';
+  static const noProductsSubtitle = 'הוסף מוצרים עם תמונה ומחיר לשימוש בהזמנות';
+  static const newSupplierOrder = 'הזמנה חדשה לספק';
+  static const finishOrder = 'סיום הזמנה';
+  static const orderSummary = 'סיכום הזמנה';
+  static const orderSaved = 'ההזמנה נשמרה';
+  static const copyOrderText = 'העתק טקסט להזמנה';
+  static const orderCopied = 'הטקסט הועתק ללוח';
+  static const sendViaWhatsapp = 'שלח בוואטסאפ';
+  static const noOrders = 'אין הזמנות שמורות';
+  static const noOrdersSubtitle = 'צור הזמנה חדשה ובחר מוצרים מהספרייה';
+  static const orderItems = 'פריטים בהזמנה';
+  static const quantity = 'כמות';
+  static const orderNotes = 'הערות להזמנה (אופציונלי)';
+  static const selectAtLeastOneProduct = 'יש לבחור לפחות מוצר אחד';
+  static const confirmDeleteProduct = 'למחוק את המוצר?';
+  static const confirmDeleteOrder = 'למחוק את ההזמנה?';
+  static const productAdded = 'המוצר נוסף בהצלחה';
+  static const productUpdated = 'המוצר עודכן בהצלחה';
+  static const productDeleted = 'המוצר נמחק';
+
   static const revenue = 'הכנסות';
   static const debtTracker = 'מעקב חובות';
   static const noUnpaid = 'אין חובות פתוחים';

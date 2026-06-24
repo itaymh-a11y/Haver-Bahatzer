@@ -223,6 +223,9 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     final kennelInfo = liveBooking.kennelId != null
         ? KennelConstants.findById(liveBooking.kennelId!)
         : null;
+    final changeKennelInfo = liveBooking.hasKennelChange
+        ? KennelConstants.findById(liveBooking.kennelChangeKennelId!)
+        : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -346,8 +349,24 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             );
           }),
 
-          if (kennelInfo != null)
+          if (kennelInfo != null && !liveBooking.hasKennelChange)
             _DetailRow(label: AppStrings.kennel, value: kennelInfo.hebrewName),
+          if (kennelInfo != null &&
+              liveBooking.hasKennelChange &&
+              changeKennelInfo != null) ...[
+            _DetailRow(
+              label: AppStrings.initialKennel,
+              value: kennelInfo.hebrewName,
+            ),
+            _DetailRow(
+              label: AppStrings.newKennel,
+              value: changeKennelInfo.hebrewName,
+            ),
+            _DetailRow(
+              label: AppStrings.kennelChangeStartDate,
+              value: dateFormat.format(liveBooking.kennelChangeStartDate!),
+            ),
+          ],
 
           if (liveBooking.type == BookingType.boarding) ...[
             _DetailRow(
