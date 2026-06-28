@@ -10,7 +10,7 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: B89UP95P4N.com.itay.haverbahatzer
+        bundle_identifier: com.itay.haverbahatzer
       flutter: stable
       xcode: latest
       cocoapods: default
