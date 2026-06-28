@@ -2,7 +2,7 @@ workflows:
   # Primary workflow for TestFlight / App Store.
   # Requires code signing set up in Codemagic:
   # Team settings → codemagic.yaml → Code signing identities → iOS
-  # Connect Apple Developer account and create App Store certificate for com.haverba.haverBahatzer
+  # Connect Apple Developer account and create App Store certificate for com.haverba.haverBahatzer.B89UP95P4N
   ios-testflight:
     name: iOS TestFlight
     instance_type: mac_mini_m2
@@ -10,7 +10,7 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.haverba.haverBahatzer
+        bundle_identifier: com.haverba.haverBahatzer.B89UP95P4N
       flutter: stable
       xcode: latest
       cocoapods: default
