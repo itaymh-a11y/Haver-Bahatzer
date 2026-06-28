@@ -76,7 +76,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyC2P4OqsFccp1p3BI2J95EmgVv0E1haETU',
-    appId: '1:345774178337:ios:4d73f83ba79d0dd700a360',
+    appId: '1:345774178337:ios:1a8f020bc83ddc6600a360',
     messagingSenderId: '345774178337',
     projectId: 'haver-bahatzer',
     storageBucket: 'haver-bahatzer.firebasestorage.app',
