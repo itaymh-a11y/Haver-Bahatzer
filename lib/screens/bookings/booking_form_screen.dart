@@ -491,6 +491,47 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         );
         if (continueAnyway != true) return;
       }
+
+      final intactOverlaps = provider.findIntactOppositeSexOverlaps(
+        dogIds: _selectedDogIds,
+        start: _startDate,
+        end: _endDate,
+        allDogs: context.read<DogProvider>().dogs,
+        excludeId: widget.booking?.id,
+      );
+      if (intactOverlaps.isNotEmpty) {
+        final dateFormat = DateFormat('dd/MM/yyyy', 'he');
+        final lines = intactOverlaps.map((overlap) {
+          final range = dateFormat.format(overlap.overlapStart) ==
+                  dateFormat.format(overlap.overlapEnd)
+              ? dateFormat.format(overlap.overlapStart)
+              : '${dateFormat.format(overlap.overlapStart)} – ${dateFormat.format(overlap.overlapEnd)}';
+          return AppStrings.intactOppositeSexOverlapLine(
+            maleDogName: overlap.maleDogName,
+            femaleDogName: overlap.femaleDogName,
+            dateRange: range,
+          );
+        }).join('\n\n');
+
+        final continueIntactOverlap = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text(AppStrings.intactOppositeSexTitle),
+            content: Text('$lines\n\n${AppStrings.intactOppositeSexContinue}'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text(AppStrings.cancel),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text(AppStrings.continueAction),
+              ),
+            ],
+          ),
+        );
+        if (continueIntactOverlap != true) return;
+      }
     }
 
     final meetingTimeStr = _meetingTime != null

@@ -145,6 +145,15 @@ class AppStrings {
   static const sameDayTurnoverMessage =
       'בתא שבחרת יש כלב אחר שמתוכנן לצאת באותו היום. האם להמשיך בכל זאת?';
   static const continueAction = 'המשך';
+  static const intactOppositeSexTitle = 'שים לב — זכר ונקבה לא מסורסים';
+  static const intactOppositeSexContinue = 'האם להמשיך בכל זאת?';
+
+  static String intactOppositeSexOverlapLine({
+    required String maleDogName,
+    required String femaleDogName,
+    required String dateRange,
+  }) =>
+      'בתאריכים $dateRange: $maleDogName (זכר לא מסורס) ו-$femaleDogName (נקבה לא מעוקרת) ישהו יחד בפנסיון.';
   static const missingContract = 'חסר חוזה!';
   static const snapContract = 'צלם חוזה';
   static const retakeContract = 'צלם מחדש';

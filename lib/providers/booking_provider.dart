@@ -4,6 +4,7 @@ import '../core/constants/app_strings.dart';
 import '../core/constants/kennel_constants.dart';
 import '../core/utils/image_utils.dart';
 import '../models/booking_model.dart';
+import '../models/dog_model.dart';
 import '../models/vacation_model.dart';
 import '../services/booking_service.dart';
 import '../services/storage_service.dart';
@@ -15,6 +16,20 @@ class BookingPaymentEntry {
   BookingPaymentEntry({
     required this.booking,
     required this.payment,
+  });
+}
+
+class IntactOppositeSexOverlap {
+  final String maleDogName;
+  final String femaleDogName;
+  final DateTime overlapStart;
+  final DateTime overlapEnd;
+
+  const IntactOppositeSexOverlap({
+    required this.maleDogName,
+    required this.femaleDogName,
+    required this.overlapStart,
+    required this.overlapEnd,
   });
 }
 
@@ -265,6 +280,86 @@ class BookingProvider extends ChangeNotifier {
       }
     }
     return null;
+  }
+
+  List<IntactOppositeSexOverlap> findIntactOppositeSexOverlaps({
+    required List<String> dogIds,
+    required DateTime start,
+    required DateTime end,
+    required List<Dog> allDogs,
+    String? excludeId,
+  }) {
+    final overlaps = <IntactOppositeSexOverlap>[];
+    final dogsById = {for (final d in allDogs) d.id: d};
+    final newDogs = dogIds
+        .map((id) => dogsById[id])
+        .whereType<Dog>()
+        .toList();
+
+    void addOverlap(Dog a, Dog b, DateTime rangeStart, DateTime rangeEnd) {
+      if (!Dog.areIntactOppositeSex(a, b)) return;
+      final intersection = _dateRangeIntersection(
+        start,
+        end,
+        rangeStart,
+        rangeEnd,
+      );
+      if (intersection == null) return;
+
+      final male = a.isIntactMale ? a : b;
+      final female = a.isIntactFemale ? a : b;
+      overlaps.add(
+        IntactOppositeSexOverlap(
+          maleDogName: male.name,
+          femaleDogName: female.name,
+          overlapStart: intersection.$1,
+          overlapEnd: intersection.$2,
+        ),
+      );
+    }
+
+    for (var i = 0; i < newDogs.length; i++) {
+      for (var j = i + 1; j < newDogs.length; j++) {
+        addOverlap(newDogs[i], newDogs[j], start, end);
+      }
+    }
+
+    for (final booking in _bookings) {
+      if (booking.id == excludeId) continue;
+      if (booking.type != BookingType.boarding) continue;
+
+      for (final newDog in newDogs) {
+        for (final existingDogId in booking.dogIds) {
+          final existingDog = dogsById[existingDogId];
+          if (existingDog == null) continue;
+          addOverlap(
+            newDog,
+            existingDog,
+            booking.startDate,
+            booking.endDate,
+          );
+        }
+      }
+    }
+
+    return overlaps;
+  }
+
+  (DateTime, DateTime)? _dateRangeIntersection(
+    DateTime aStart,
+    DateTime aEnd,
+    DateTime bStart,
+    DateTime bEnd,
+  ) {
+    final start = _dateOnly(aStart);
+    final end = _dateOnly(aEnd);
+    final bStartD = _dateOnly(bStart);
+    final bEndD = _dateOnly(bEnd);
+
+    final overlapStart = start.isAfter(bStartD) ? start : bStartD;
+    final overlapEnd = end.isBefore(bEndD) ? end : bEndD;
+    if (overlapStart.isAfter(overlapEnd)) return null;
+    return (overlapStart, overlapEnd);
   }
 
   String? checkKennelConflict({

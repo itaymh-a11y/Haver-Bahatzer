@@ -120,6 +120,15 @@ class Dog {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  bool get isIntactMale => isMale == true && isNeutered == false;
+
+  bool get isIntactFemale => isMale == false && isNeutered == false;
+
+  static bool areIntactOppositeSex(Dog a, Dog b) {
+    return (a.isIntactMale && b.isIntactFemale) ||
+        (a.isIntactFemale && b.isIntactMale);
+  }
 }
 
 const _sentinel = Object();
