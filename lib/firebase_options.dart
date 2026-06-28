@@ -80,7 +80,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '345774178337',
     projectId: 'haver-bahatzer',
     storageBucket: 'haver-bahatzer.firebasestorage.app',
-    iosBundleId: 'com.haverba.haverBahatzer.B89UP95P4N',
+    iosBundleId: 'com.haverba.haverBahatzer',
   );
 
   static const FirebaseOptions web = FirebaseOptions(
