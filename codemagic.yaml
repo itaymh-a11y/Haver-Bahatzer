@@ -1,15 +1,44 @@
 workflows:
-  ios-workflow:
-    name: iOS AltStore Build
-    instance_type: mac_mini_m1
+  # Primary workflow for TestFlight / App Store.
+  # Requires code signing set up in Codemagic:
+  # Team settings → codemagic.yaml → Code signing identities → iOS
+  # Connect Apple Developer account and create App Store certificate for com.haverba.haverBahatzer
+  ios-testflight:
+    name: iOS TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.haverba.haverBahatzer
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install dependencies
+        script: flutter pub get
+      - name: Set up code signing settings on Xcode project
+        script: xcode-project use-profiles
+      - name: Build signed IPA
+        script: |
+          flutter build ipa --release \
+            --export-options-plist=$HOME/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+  # Unsigned build for local sideloading (AltStore). No Apple certificates needed.
+  ios-altstore:
+    name: iOS AltStore (unsigned)
+    instance_type: mac_mini_m2
     max_build_duration: 30
     environment:
       flutter: stable
       xcode: latest
     scripts:
       - name: Install dependencies
-        script: flutter packages pub get
-      - name: Build iOS
+        script: flutter pub get
+      - name: Build iOS without code signing
         script: flutter build ios --release --no-codesign
     artifacts:
-      - build/ios/iphoneos/*.app
+      - build/ios/iphoneos/Runner.app
