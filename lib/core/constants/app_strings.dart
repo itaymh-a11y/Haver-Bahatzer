@@ -70,6 +70,28 @@ class AppStrings {
   static const addBooking = 'הוסף הזמנה';
   static const editBooking = 'ערוך הזמנה';
   static const calendar = 'לוח שנה';
+  static const stayLegendCheckIn = 'כניסה';
+  static const stayLegendMiddle = 'באמצע';
+  static const stayLegendCheckOut = 'יציאה';
+  static const stayLegendSameDay = 'כניסה+יציאה';
+  static const softHold = 'שריון רך';
+  static const softHoldEnable = 'שיריון מקום רצוי (רך)';
+  static const softHoldStartDate = 'תחילת שהות רצויה';
+  static const softHoldEndDate = 'סיום שהות רצויה';
+  static const softHoldKennel = 'כלוב רצוי';
+  static const softHoldRequired =
+      'יש למלא תאריכי שהות וכלוב לשריון הרך';
+  static const softHoldDisplacedTitle = 'שריון רך נפגע';
+  static const softHoldDisplacedBadge = 'המקום נתפס — עדכן בעלים';
+  static const softHoldConvert = 'שריון מקום סופי';
+  static const softHoldConvertHint =
+      'תיפתח הזמנת אירוח חדשה עם הכלב, הכלוב והתאריכים מהשריון הרך. אחרי השמירה השריון הרך יוסר.';
+  static const softHoldOverlapTitle = 'הזמנה רכה על אותם תאריכים';
+  static const softHoldOverlapContinue =
+      'ההזמנה הרגילה תישמר. מומלץ לעדכן את הבעלים של השריון הרך.';
+  static const softHoldAltKennel = 'כלוב חלופי מוצע';
+  static const softHoldNoAltKennel = 'אין כלוב חלופי פנוי';
+  static const softHoldCalendarLabel = 'שריון רך';
   static const vacations = 'חופשות';
   static const addVacation = 'הוסף חופשה';
   static const editVacation = 'ערוך חופשה';
@@ -123,6 +145,9 @@ class AppStrings {
   static const bankTransfer = 'העברה בנקאית';
   static const todayCheckIns = 'כניסות היום';
   static const todayCheckOuts = 'יציאות היום';
+  static const checkIns = 'כניסות';
+  static const checkOuts = 'יציאות';
+  static const goToToday = 'היום';
   static const todayIntros = 'פגישות היכרות היום';
   static const occupancy = 'תפוסה';
   static const unitsFreeOf = 'יחידות תפוסות מתוך';

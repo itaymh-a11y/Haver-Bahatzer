@@ -24,14 +24,28 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  late DateTime _selectedFeedDay;
+
+  DateTime get _todayDate {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
   @override
   void initState() {
     super.initState();
+    _selectedFeedDay = _todayDate;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DogProvider>().startListening();
       context.read<BookingProvider>().startListening();
       context.read<VacationProvider>().startListening();
       context.read<PensionProvider>().startListening();
+    });
+  }
+
+  void _shiftFeedDay(int days) {
+    setState(() {
+      _selectedFeedDay = _selectedFeedDay.add(Duration(days: days));
     });
   }
 
@@ -64,8 +78,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const OccupancyBar(),
           const SizedBox(height: 12),
           DailyFeedCard(
-            checkIns: bookingProvider.todayCheckIns,
-            checkOuts: bookingProvider.todayCheckOuts,
+            selectedDay: _selectedFeedDay,
+            checkIns: bookingProvider.checkInsForDay(_selectedFeedDay),
+            checkOuts: bookingProvider.checkOutsForDay(_selectedFeedDay),
+            onPreviousDay: () => _shiftFeedDay(-1),
+            onNextDay: () => _shiftFeedDay(1),
+            onGoToToday: () => setState(() => _selectedFeedDay = _todayDate),
           ),
           const SizedBox(height: 12),
           IntroRemindersCard(intros: bookingProvider.todayIntros),

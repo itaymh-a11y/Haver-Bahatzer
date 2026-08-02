@@ -5,13 +5,21 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/constants/kennel_constants.dart';
 import '../../models/booking_model.dart';
+import '../../models/stay_phase.dart';
+import '../../providers/booking_provider.dart';
 import '../../providers/dog_provider.dart';
 import '../../screens/bookings/booking_detail_screen.dart';
 
 class BookingCard extends StatelessWidget {
   final Booking booking;
+  /// When set (e.g. selected calendar day), shows check-in / mid / check-out phase.
+  final DateTime? referenceDay;
 
-  const BookingCard({super.key, required this.booking});
+  const BookingCard({
+    super.key,
+    required this.booking,
+    this.referenceDay,
+  });
 
   Color _statusColor(BookingStatus status) {
     switch (status) {
@@ -38,6 +46,7 @@ class BookingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dogs = context.watch<DogProvider>().dogs;
+    final bookingProvider = context.watch<BookingProvider>();
     final dogNames = booking.dogIds
         .map((id) {
           final idx = dogs.indexWhere((d) => d.id == id);
@@ -48,6 +57,12 @@ class BookingCard extends StatelessWidget {
 
     final dateFormat = DateFormat('dd/MM/yy', 'he');
     final statusColor = _statusColor(booking.status);
+    final stayPhase = booking.type == BookingType.boarding &&
+            referenceDay != null
+        ? StayPhase.forBookingDay(booking, referenceDay!)
+        : null;
+    final softHoldDisplaced = booking.hasSoftHold &&
+        bookingProvider.isSoftHoldDisplaced(booking);
     final kennelInfo = booking.kennelId != null
         ? KennelConstants.findById(booking.kennelId!)
         : null;
@@ -88,6 +103,13 @@ class BookingCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
+                      if (stayPhase != null) ...[
+                        StayPhaseChip(
+                          label: stayPhase.label,
+                          phase: stayPhase,
+                        ),
+                        const SizedBox(width: 6),
+                      ],
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 3),
@@ -154,7 +176,7 @@ class BookingCard extends StatelessWidget {
                             ?.copyWith(color: AppColors.textSecondary),
                       ),
                       if (booking.type == BookingType.introMeeting &&
-                          booking.meetingTime != null) ...[
+                      booking.meetingTime != null) ...[
                         const SizedBox(width: 8),
                         const Icon(Icons.access_time,
                             size: 14, color: AppColors.textSecondary),
@@ -169,6 +191,52 @@ class BookingCard extends StatelessWidget {
                       ],
                     ],
                   ),
+                  if (booking.hasSoftHold) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.softHold.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: softHoldDisplaced
+                              ? AppColors.error
+                              : AppColors.softHold,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            softHoldDisplaced
+                                ? AppStrings.softHoldDisplacedBadge
+                                : AppStrings.softHold,
+                            style: TextStyle(
+                              color: softHoldDisplaced
+                                  ? AppColors.error
+                                  : AppColors.softHold,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${KennelConstants.findById(booking.softHoldKennelId!)?.hebrewName ?? booking.softHoldKennelId} · ${dateFormat.format(booking.softHoldStartDate!)} – ${dateFormat.format(booking.softHoldEndDate!)}',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: softHoldDisplaced
+                                      ? AppColors.error
+                                      : AppColors.textSecondary,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   if (booking.type == BookingType.boarding &&
                       booking.totalPrice != null) ...[
                     const SizedBox(height: 4),

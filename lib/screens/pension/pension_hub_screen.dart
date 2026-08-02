@@ -22,13 +22,72 @@ class _PensionHubScreenState extends State<PensionHubScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() => setState(() {}));
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) setState(() {});
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<PensionProvider>().startListening();
+    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _onFabPressed() async {
+    final isProductsTab = _tabController.index == 0;
+    if (isProductsTab) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const PensionProductFormScreen(),
+        ),
+      );
+      return;
+    }
+
+    final products = context.read<PensionProvider>().products;
+    if (products.isEmpty) {
+      final goAdd = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text(AppStrings.noProducts),
+          content: const Text(
+            'כדי ליצור הזמנה לספק צריך קודם להוסיף מוצרים לספרייה.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text(AppStrings.cancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text(AppStrings.addProduct),
+            ),
+          ],
+        ),
+      );
+      if (goAdd == true && mounted) {
+        _tabController.animateTo(0);
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const PensionProductFormScreen(),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const PensionOrderCreateScreen(),
+      ),
+    );
   }
 
   @override
@@ -54,36 +113,13 @@ class _PensionHubScreenState extends State<PensionHubScreen>
       ),
       body: TabBarView(
         controller: _tabController,
-        children: const [
-          PensionProductsTab(),
-          PensionOrdersTab(),
+        children: [
+          const PensionProductsTab(),
+          PensionOrdersTab(onCreateOrder: _onFabPressed),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          if (isProductsTab) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const PensionProductFormScreen(),
-              ),
-            );
-          } else {
-            final products = context.read<PensionProvider>().products;
-            if (products.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text(AppStrings.noProducts)),
-              );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const PensionOrderCreateScreen(),
-              ),
-            );
-          }
-        },
+        onPressed: _onFabPressed,
         icon: Icon(isProductsTab ? Icons.add : Icons.playlist_add),
         label: Text(
           isProductsTab ? AppStrings.addProduct : AppStrings.newSupplierOrder,

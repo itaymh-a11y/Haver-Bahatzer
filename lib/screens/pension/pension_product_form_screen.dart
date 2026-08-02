@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/utils/money_format.dart';
 import '../../core/utils/validators.dart';
 import '../../models/pension_product_model.dart';
 import '../../providers/pension_provider.dart';
@@ -35,7 +37,7 @@ class _PensionProductFormScreenState extends State<PensionProductFormScreen> {
     final p = widget.product;
     _nameController = TextEditingController(text: p?.name ?? '');
     _priceController = TextEditingController(
-      text: p?.price != null && p!.price > 0 ? p.price.toStringAsFixed(0) : '',
+      text: p != null && p.price > 0 ? formatMoney(p.price) : '',
     );
   }
 
@@ -148,6 +150,11 @@ class _PensionProductFormScreenState extends State<PensionProductFormScreen> {
                 controller: _priceController,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
+                textDirection: TextDirection.ltr,
+                hint: 'לדוגמה: 9.90',
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                ],
                 validator: (v) {
                   if (v == null || v.trim().isEmpty) {
                     return AppStrings.fieldRequired;

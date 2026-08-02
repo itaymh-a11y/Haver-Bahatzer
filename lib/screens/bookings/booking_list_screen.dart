@@ -35,7 +35,8 @@ class _BookingListScreenState extends State<BookingListScreen>
     sorted.sort((a, b) {
       final priorityCompare = _paymentPriority(a).compareTo(_paymentPriority(b));
       if (priorityCompare != 0) return priorityCompare;
-      return a.endDate.compareTo(b.endDate);
+      // Within same payment status: newest completed stays first.
+      return b.endDate.compareTo(a.endDate);
     });
     return sorted;
   }

@@ -5,6 +5,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/constants/kennel_constants.dart';
 import '../../models/booking_model.dart';
+import '../../models/stay_phase.dart';
 import '../../providers/booking_provider.dart';
 import '../../providers/dog_provider.dart';
 import '../../providers/vacation_provider.dart';
@@ -40,7 +41,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final provider = context.watch<BookingProvider>();
     final vacationProvider = context.watch<VacationProvider>();
     final dogProvider = context.watch<DogProvider>();
-    final selectedBookings = provider.getBookingsForDay(_selectedDay);
+    final selectedBookings = [
+      ...provider.getBookingsForDay(_selectedDay),
+      ...provider.getSoftHoldsForDay(_selectedDay).where(
+            (hold) => !provider
+                .getBookingsForDay(_selectedDay)
+                .any((b) => b.id == hold.id),
+          ),
+    ];
     final isSelectedDayVacation = vacationProvider.isDayBlocked(_selectedDay);
 
     return Scaffold(
@@ -152,25 +160,41 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     dogProvider: dogProvider,
                     vacationProvider: vacationProvider,
                   )
-                : selectedBookings.isEmpty
-                    ? Center(
-                        child: Text(
-                          isSelectedDayVacation
-                              ? AppStrings.vacationDay
-                              : AppStrings.noBookings,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyLarge
-                              ?.copyWith(color: AppColors.textSecondary),
+                : Column(
+                    children: [
+                      if (selectedBookings.any(
+                          (b) => b.type == BookingType.boarding))
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+                          child: StayPhaseLegend(),
                         ),
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.all(12),
-                        itemCount: selectedBookings.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 8),
-                        itemBuilder: (_, i) =>
-                            BookingCard(booking: selectedBookings[i]),
+                      Expanded(
+                        child: selectedBookings.isEmpty
+                            ? Center(
+                                child: Text(
+                                  isSelectedDayVacation
+                                      ? AppStrings.vacationDay
+                                      : AppStrings.noBookings,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyLarge
+                                      ?.copyWith(
+                                          color: AppColors.textSecondary),
+                                ),
+                              )
+                            : ListView.separated(
+                                padding: const EdgeInsets.all(12),
+                                itemCount: selectedBookings.length,
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(height: 8),
+                                itemBuilder: (_, i) => BookingCard(
+                                  booking: selectedBookings[i],
+                                  referenceDay: _selectedDay,
+                                ),
+                              ),
                       ),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -249,128 +273,293 @@ class _WeekKennelView extends StatelessWidget {
             constraints.maxWidth > targetWidth ? constraints.maxWidth : targetWidth;
         final dayColumnWidth = rowWidth / weekDays.length;
 
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.all(12),
-          child: SizedBox(
-            width: rowWidth,
-            child: Directionality(
-              textDirection: TextDirection.rtl,
-              child: Row(
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: weekDays.map((day) {
-                  final dayBookings = bookingProvider
-                      .getBookingsForDay(day)
-                      .where((b) => b.type == BookingType.boarding)
-                      .toList();
-                  final isVacation = vacationProvider.isDayBlocked(day);
+                children: [
+                  StayPhaseLegend(),
+                  SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.handshake_outlined,
+                          size: 14, color: AppColors.softHold),
+                      SizedBox(width: 4),
+                      Text(
+                        AppStrings.softHoldCalendarLabel,
+                        style: TextStyle(
+                          color: AppColors.softHold,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.all(12),
+                child: SizedBox(
+                  width: rowWidth,
+                  child: Directionality(
+                    textDirection: TextDirection.rtl,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: weekDays.map((day) {
+                        final dayBookings = bookingProvider
+                            .getBookingsForDay(day)
+                            .where((b) => b.type == BookingType.boarding)
+                            .toList();
+                        final softHolds =
+                            bookingProvider.getSoftHoldsForDay(day);
+                        final isVacation = vacationProvider.isDayBlocked(day);
 
-                  return SizedBox(
-                    width: dayColumnWidth,
-                    child: Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      color: isVacation
-                          ? AppColors.vacationDay.withValues(alpha: 0.08)
-                          : null,
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _dayTitle(day),
-                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                            if (isVacation) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                AppStrings.vacationDay,
-                                style: TextStyle(
-                                  color: AppColors.vacationDay.withValues(alpha: 0.9),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 8),
-                            ...KennelConstants.all.map((kennel) {
-                              final kennelBookings = dayBookings
-                                  .where((b) =>
-                                      b.kennelIdForDate(day) == kennel.id)
-                                  .toList();
-                              final dogIds = <String>{};
-                              for (final b in kennelBookings) {
-                                dogIds.addAll(b.dogIds);
-                              }
-                              final dogNames = dogIds.map((id) {
-                                final idx = dogProvider.dogs.indexWhere((d) => d.id == id);
-                                return idx != -1 ? dogProvider.dogs[idx].name : id;
-                              }).toList();
-
-                              final occupied = dogIds.isNotEmpty;
-                              final isFull = dogIds.length >= kennel.maxDogs;
-                              final statusText =
-                                  occupied ? (isFull ? 'מלא' : 'תפוס חלקית') : 'ריק';
-                              final statusColor = occupied
-                                  ? (isFull ? AppColors.error : Colors.orange)
-                                  : Colors.green;
-
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 4),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      kennel.hebrewName,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: statusColor.withValues(alpha: 0.12),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Text(
-                                            '$statusText (${dogIds.length}/${kennel.maxDogs})',
-                                            style: TextStyle(
-                                              color: statusColor,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
+                        return SizedBox(
+                          width: dayColumnWidth,
+                          child: Card(
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            color: isVacation
+                                ? AppColors.vacationDay.withValues(alpha: 0.08)
+                                : null,
+                            child: Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _dayTitle(day),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.bold,
                                         ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 2),
+                                  ),
+                                  if (isVacation) ...[
+                                    const SizedBox(height: 4),
                                     Text(
-                                      dogNames.isEmpty ? '—' : dogNames.join(', '),
-                                      style: const TextStyle(
-                                        color: AppColors.textSecondary,
+                                      AppStrings.vacationDay,
+                                      style: TextStyle(
+                                        color: AppColors.vacationDay
+                                            .withValues(alpha: 0.9),
                                         fontSize: 12,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                   ],
-                                ),
-                              );
-                            }),
-                          ],
-                        ),
-                      ),
+                                  const SizedBox(height: 8),
+                                  ...KennelConstants.all.map((kennel) {
+                                    final kennelBookings = dayBookings
+                                        .where((b) =>
+                                            b.kennelIdForDate(day) ==
+                                            kennel.id)
+                                        .toList();
+
+                                    final dogPhases = <String, StayPhase>{};
+                                    for (final b in kennelBookings) {
+                                      final phase =
+                                          StayPhase.forBookingDay(b, day);
+                                      for (final id in b.dogIds) {
+                                        dogPhases.putIfAbsent(
+                                            id, () => phase);
+                                      }
+                                    }
+
+                                    final dogEntries =
+                                        dogPhases.entries.map((e) {
+                                      final idx = dogProvider.dogs
+                                          .indexWhere((d) => d.id == e.key);
+                                      final name = idx != -1
+                                          ? dogProvider.dogs[idx].name
+                                          : e.key;
+                                      return _DogStayEntry(
+                                        name: name,
+                                        phase: e.value,
+                                      );
+                                    }).toList()
+                                          ..sort((a, b) =>
+                                              a.name.compareTo(b.name));
+
+                                    final softHoldNames = softHolds
+                                        .where((h) =>
+                                            h.softHoldKennelId == kennel.id)
+                                        .expand((h) => h.dogIds)
+                                        .map((id) {
+                                      final idx = dogProvider.dogs
+                                          .indexWhere((d) => d.id == id);
+                                      return idx != -1
+                                          ? dogProvider.dogs[idx].name
+                                          : id;
+                                    }).toSet()
+                                        .toList()
+                                      ..sort();
+
+                                    final occupied = dogEntries.isNotEmpty;
+                                    final isFull =
+                                        dogEntries.length >= kennel.maxDogs;
+                                    final statusText = occupied
+                                        ? (isFull ? 'מלא' : 'תפוס חלקית')
+                                        : 'ריק';
+                                    final statusColor = occupied
+                                        ? (isFull
+                                            ? AppColors.occupancyFull
+                                            : AppColors.occupancyPartial)
+                                        : AppColors.occupancyEmpty;
+                                    final statusIcon = occupied
+                                        ? (isFull
+                                            ? Icons.radio_button_checked
+                                            : Icons.timelapse)
+                                        : Icons.radio_button_unchecked;
+
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 4),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            kennel.hebrewName,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Row(
+                                            children: [
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.transparent,
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                    color: statusColor
+                                                        .withValues(alpha: 0.55),
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      statusIcon,
+                                                      size: 11,
+                                                      color: statusColor,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      '$statusText (${dogEntries.length}/${kennel.maxDogs})',
+                                                      style: TextStyle(
+                                                        color: statusColor,
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          if (dogEntries.isEmpty &&
+                                              softHoldNames.isEmpty)
+                                            const Text(
+                                              '—',
+                                              style: TextStyle(
+                                                color: AppColors.textSecondary,
+                                                fontSize: 12,
+                                              ),
+                                            )
+                                          else ...[
+                                            if (dogEntries.isNotEmpty)
+                                              Wrap(
+                                                spacing: 4,
+                                                runSpacing: 4,
+                                                children: dogEntries
+                                                    .map(
+                                                      (entry) => StayPhaseChip(
+                                                        label: entry.name,
+                                                        phase: entry.phase,
+                                                      ),
+                                                    )
+                                                    .toList(),
+                                              ),
+                                            if (softHoldNames.isNotEmpty) ...[
+                                              if (dogEntries.isNotEmpty)
+                                                const SizedBox(height: 4),
+                                              Wrap(
+                                                spacing: 4,
+                                                runSpacing: 4,
+                                                children: softHoldNames
+                                                    .map(
+                                                      (name) => Container(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 3,
+                                                        ),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: AppColors
+                                                              .softHold
+                                                              .withValues(
+                                                                  alpha: 0.14),
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(8),
+                                                          border: Border.all(
+                                                            color: AppColors
+                                                                .softHold,
+                                                            width: 1.5,
+                                                          ),
+                                                        ),
+                                                        child: Text(
+                                                          '$name · ${AppStrings.softHold}',
+                                                          style:
+                                                              const TextStyle(
+                                                            color: AppColors
+                                                                .softHold,
+                                                            fontSize: 12,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    )
+                                                    .toList(),
+                                              ),
+                                            ],
+                                          ],
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     ),
-                  );
-                }).toList(),
+                  ),
+                ),
               ),
             ),
-          ),
+          ],
         );
       },
     );
@@ -383,4 +572,11 @@ class _WeekKennelView extends StatelessWidget {
     final m = day.month.toString().padLeft(2, '0');
     return 'יום ${dayNames[weekdayIndex]} • $d/$m';
   }
+}
+
+class _DogStayEntry {
+  final String name;
+  final StayPhase phase;
+
+  const _DogStayEntry({required this.name, required this.phase});
 }

@@ -19,10 +19,28 @@ enum BookingFormMode { add, edit }
 class BookingFormScreen extends StatefulWidget {
   final Booking? booking;
   final DateTime? initialDate;
+  final BookingType? initialType;
+  final List<String>? initialDogIds;
+  final String? initialKennelId;
+  final DateTime? initialStartDate;
+  final DateTime? initialEndDate;
+  /// After saving a new boarding booking, clear soft hold on this intro.
+  final String? clearSoftHoldIntroId;
 
-  const BookingFormScreen({super.key, this.booking, this.initialDate});
+  const BookingFormScreen({
+    super.key,
+    this.booking,
+    this.initialDate,
+    this.initialType,
+    this.initialDogIds,
+    this.initialKennelId,
+    this.initialStartDate,
+    this.initialEndDate,
+    this.clearSoftHoldIntroId,
+  });
 
-  BookingFormMode get mode => booking == null ? BookingFormMode.add : BookingFormMode.edit;
+  BookingFormMode get mode =>
+      booking == null ? BookingFormMode.add : BookingFormMode.edit;
 
   @override
   State<BookingFormScreen> createState() => _BookingFormScreenState();
@@ -47,6 +65,10 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   late bool _hasKennelChange;
   DateTime? _kennelChangeStartDate;
   String? _kennelChangeKennelId;
+  late bool _hasSoftHold;
+  late DateTime _softHoldStartDate;
+  late DateTime _softHoldEndDate;
+  String? _softHoldKennelId;
   late bool _isPaid;
   late bool _splitPayment;
   DateTime? _paymentDate;
@@ -60,11 +82,18 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   void initState() {
     super.initState();
     final b = widget.booking;
-    _selectedType = b?.type ?? BookingType.boarding;
-    _selectedDogIds = List.from(b?.dogIds ?? []);
-    _selectedKennelId = b?.kennelId;
-    _startDate = b?.startDate ?? widget.initialDate ?? DateTime.now();
-    _endDate = b?.endDate ?? widget.initialDate ?? DateTime.now();
+    _selectedType =
+        b?.type ?? widget.initialType ?? BookingType.boarding;
+    _selectedDogIds = List.from(b?.dogIds ?? widget.initialDogIds ?? []);
+    _selectedKennelId = b?.kennelId ?? widget.initialKennelId;
+    _startDate = b?.startDate ??
+        widget.initialStartDate ??
+        widget.initialDate ??
+        DateTime.now();
+    _endDate = b?.endDate ??
+        widget.initialEndDate ??
+        widget.initialDate ??
+        DateTime.now();
     _priceController =
         TextEditingController(text: b?.totalPrice?.toStringAsFixed(0) ?? '');
     _dailyRateController =
@@ -79,6 +108,10 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
     _hasKennelChange = b?.hasKennelChange ?? false;
     _kennelChangeStartDate = b?.kennelChangeStartDate;
     _kennelChangeKennelId = b?.kennelChangeKennelId;
+    _hasSoftHold = b?.hasSoftHold ?? false;
+    _softHoldStartDate = b?.softHoldStartDate ?? _startDate;
+    _softHoldEndDate = b?.softHoldEndDate ?? _startDate;
+    _softHoldKennelId = b?.softHoldKennelId;
     _isPaid = b?.isPaid ?? false;
     _splitPayment = false;
     _paymentDate = DateTime.now();
@@ -304,6 +337,31 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
     if (picked != null) setState(() => _meetingTime = picked);
   }
 
+  Future<void> _pickSoftHoldDate({required bool isStart}) async {
+    final initial = isStart ? _softHoldStartDate : _softHoldEndDate;
+    final first = isStart ? DateTime(2020) : _softHoldStartDate;
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial.isBefore(first) ? first : initial,
+      firstDate: first,
+      lastDate: DateTime(2100),
+      locale: const Locale('he', 'IL'),
+    );
+    if (picked == null) return;
+
+    setState(() {
+      if (isStart) {
+        _softHoldStartDate = picked;
+        if (_softHoldEndDate.isBefore(_softHoldStartDate)) {
+          _softHoldEndDate = _softHoldStartDate;
+        }
+      } else {
+        _softHoldEndDate = picked;
+      }
+    });
+  }
+
   void _recalcPrice() {
     if (_selectedType != BookingType.boarding) return;
     final dogs = context.read<DogProvider>().dogs;
@@ -462,6 +520,58 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         return;
       }
 
+      final softHoldConflicts = provider.findSoftHoldConflicts(
+        dogIds: _selectedDogIds,
+        start: _startDate,
+        end: _endDate,
+        kennelId: _selectedKennelId!,
+        kennelChangeStartDate:
+            _hasKennelChange ? _kennelChangeStartDate : null,
+        kennelChangeKennelId:
+            _hasKennelChange ? _kennelChangeKennelId : null,
+        excludeId: widget.booking?.id,
+      );
+      if (softHoldConflicts.isNotEmpty) {
+        final dateFormat = DateFormat('dd/MM/yyyy', 'he');
+        final dogs = context.read<DogProvider>().dogs;
+        final lines = softHoldConflicts.map((c) {
+          final names = c.introBooking.dogIds
+              .map((id) {
+                final idx = dogs.indexWhere((d) => d.id == id);
+                return idx != -1 ? dogs[idx].name : id;
+              })
+              .join(', ');
+          final kennel = KennelConstants.findById(
+                  c.introBooking.softHoldKennelId!)
+              ?.hebrewName;
+          final range =
+              '${dateFormat.format(c.introBooking.softHoldStartDate!)} – ${dateFormat.format(c.introBooking.softHoldEndDate!)}';
+          final alt = c.alternativeKennelId == null
+              ? AppStrings.softHoldNoAltKennel
+              : '${AppStrings.softHoldAltKennel}: ${KennelConstants.findById(c.alternativeKennelId!)?.hebrewName ?? c.alternativeKennelId}';
+          return '$names\n$kennel • $range\n$alt';
+        }).join('\n\n');
+
+        final continueSoft = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text(AppStrings.softHoldOverlapTitle),
+            content: Text('$lines\n\n${AppStrings.softHoldOverlapContinue}'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text(AppStrings.cancel),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text(AppStrings.continueAction),
+              ),
+            ],
+          ),
+        );
+        if (continueSoft != true) return;
+      }
+
       final hasSameDayCheckout = provider.hasSameDayTurnoverWarning(
         kennelId: _selectedKennelId,
         start: _startDate,
@@ -537,6 +647,17 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
     final meetingTimeStr = _meetingTime != null
         ? '${_meetingTime!.hour.toString().padLeft(2, '0')}:${_meetingTime!.minute.toString().padLeft(2, '0')}'
         : null;
+
+    if (_selectedType == BookingType.introMeeting && _hasSoftHold) {
+      if (_softHoldKennelId == null || _softHoldKennelId!.isEmpty) {
+        if (mounted) showErrorSnackbar(context, AppStrings.softHoldRequired);
+        return;
+      }
+      if (_softHoldEndDate.isBefore(_softHoldStartDate)) {
+        if (mounted) showErrorSnackbar(context, AppStrings.softHoldRequired);
+        return;
+      }
+    }
 
     final now = DateTime.now();
     final totalPrice = _selectedType == BookingType.boarding
@@ -646,8 +767,31 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         payments: payments,
         paidAt: newPayment?.paidAt,
         createdAt: now,
+        softHoldStartDate: _selectedType == BookingType.introMeeting && _hasSoftHold
+            ? _softHoldStartDate
+            : null,
+        softHoldEndDate: _selectedType == BookingType.introMeeting && _hasSoftHold
+            ? _softHoldEndDate
+            : null,
+        softHoldKennelId: _selectedType == BookingType.introMeeting && _hasSoftHold
+            ? _softHoldKennelId
+            : null,
       );
       await provider.addBooking(booking);
+      if (widget.clearSoftHoldIntroId != null) {
+        final intros = provider.bookings
+            .where((b) => b.id == widget.clearSoftHoldIntroId)
+            .toList();
+        if (intros.isNotEmpty && intros.first.hasSoftHold) {
+          await provider.updateBooking(
+            intros.first.copyWith(
+              softHoldStartDate: null,
+              softHoldEndDate: null,
+              softHoldKennelId: null,
+            ),
+          );
+        }
+      }
     } else {
       final payments = <PaymentRecord>[
         ...existingPayments,
@@ -679,6 +823,15 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         paymentMethod: _paymentMethod,
         payments: payments,
         paidAt: payments.isNotEmpty ? payments.last.paidAt : null,
+        softHoldStartDate: _selectedType == BookingType.introMeeting && _hasSoftHold
+            ? _softHoldStartDate
+            : null,
+        softHoldEndDate: _selectedType == BookingType.introMeeting && _hasSoftHold
+            ? _softHoldEndDate
+            : null,
+        softHoldKennelId: _selectedType == BookingType.introMeeting && _hasSoftHold
+            ? _softHoldKennelId
+            : null,
       );
       await provider.updateBooking(updated);
     }
@@ -1053,6 +1206,45 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                   ),
                   onTap: _pickTime,
                 ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(AppStrings.softHoldEnable),
+                  subtitle: const Text(
+                    'מציג בלוח השנה על הכלוב — לא חוסם הזמנה רגילה',
+                  ),
+                  value: _hasSoftHold,
+                  onChanged: (v) => setState(() {
+                    _hasSoftHold = v;
+                    if (v) {
+                      _softHoldStartDate = _startDate;
+                      _softHoldEndDate = _startDate;
+                    }
+                  }),
+                ),
+                if (_hasSoftHold) ...[
+                  const SizedBox(height: 8),
+                  KennelSelector(
+                    selectedKennelId: _softHoldKennelId,
+                    labelText: AppStrings.softHoldKennel,
+                    onChanged: (id) =>
+                        setState(() => _softHoldKennelId = id),
+                  ),
+                  const SizedBox(height: 8),
+                  _DateTile(
+                    label: AppStrings.softHoldStartDate,
+                    date: _softHoldStartDate,
+                    dateFormat: _dateFormat,
+                    onTap: () => _pickSoftHoldDate(isStart: true),
+                  ),
+                  const SizedBox(height: 8),
+                  _DateTile(
+                    label: AppStrings.softHoldEndDate,
+                    date: _softHoldEndDate,
+                    dateFormat: _dateFormat,
+                    onTap: () => _pickSoftHoldDate(isStart: false),
+                  ),
+                ],
               ],
 
               const SizedBox(height: 28),

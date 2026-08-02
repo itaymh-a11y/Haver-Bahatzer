@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/utils/money_format.dart';
 import '../../models/pension_product_model.dart';
 import '../../providers/pension_provider.dart';
 import 'pension_product_form_screen.dart';
@@ -100,7 +101,7 @@ class _ProductCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '₪${product.price.toStringAsFixed(0)}',
+                    '₪${formatMoney(product.price)}',
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.w600,

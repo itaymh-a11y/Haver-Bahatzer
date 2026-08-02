@@ -197,11 +197,10 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   @override
   Widget build(BuildContext context) {
     // Track live updates via provider (e.g. after contract upload)
-    final liveBooking = context
-        .watch<BookingProvider>()
-        .bookings
-        .firstWhere((b) => b.id == widget.booking.id,
-            orElse: () => widget.booking);
+    final bookingProvider = context.watch<BookingProvider>();
+    final liveBooking = bookingProvider.bookings.firstWhere(
+        (b) => b.id == widget.booking.id,
+        orElse: () => widget.booking);
 
     final dogs = context.watch<DogProvider>().dogs;
     final bookingDogs = liveBooking.dogIds
@@ -386,6 +385,88 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               _DetailRow(
                   label: AppStrings.meetingTime,
                   value: liveBooking.meetingTime!),
+            if (liveBooking.hasSoftHold) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.softHold.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: bookingProvider.isSoftHoldDisplaced(liveBooking)
+                        ? AppColors.error
+                        : AppColors.softHold,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      bookingProvider.isSoftHoldDisplaced(liveBooking)
+                          ? AppStrings.softHoldDisplacedBadge
+                          : AppStrings.softHold,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: bookingProvider.isSoftHoldDisplaced(liveBooking)
+                            ? AppColors.error
+                            : AppColors.softHold,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${KennelConstants.findById(liveBooking.softHoldKennelId!)?.hebrewName ?? liveBooking.softHoldKennelId}',
+                    ),
+                    Text(
+                      '${dateFormat.format(liveBooking.softHoldStartDate!)} – ${dateFormat.format(liveBooking.softHoldEndDate!)}',
+                    ),
+                    if (bookingProvider.isSoftHoldDisplaced(liveBooking)) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        () {
+                          final alt = bookingProvider.suggestAlternativeKennel(
+                            dogIds: liveBooking.dogIds,
+                            start: liveBooking.softHoldStartDate!,
+                            end: liveBooking.softHoldEndDate!,
+                            excludeKennelId: liveBooking.softHoldKennelId,
+                          );
+                          if (alt == null) {
+                            return AppStrings.softHoldNoAltKennel;
+                          }
+                          return '${AppStrings.softHoldAltKennel}: ${KennelConstants.findById(alt)?.hebrewName ?? alt}';
+                        }(),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Text(
+                      AppStrings.softHoldConvertHint,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => BookingFormScreen(
+                            initialType: BookingType.boarding,
+                            initialDogIds: liveBooking.dogIds,
+                            initialKennelId: liveBooking.softHoldKennelId,
+                            initialStartDate: liveBooking.softHoldStartDate,
+                            initialEndDate: liveBooking.softHoldEndDate,
+                            clearSoftHoldIntroId: liveBooking.id,
+                          ),
+                        ),
+                      ),
+                      icon: const Icon(Icons.lock_outline),
+                      label: const Text(AppStrings.softHoldConvert),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
 
           if (liveBooking.totalPrice != null) ...[

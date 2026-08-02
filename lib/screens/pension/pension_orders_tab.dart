@@ -3,12 +3,15 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/utils/money_format.dart';
 import '../../models/pension_order_model.dart';
 import '../../providers/pension_provider.dart';
 import 'pension_order_detail_screen.dart';
 
 class PensionOrdersTab extends StatelessWidget {
-  const PensionOrdersTab({super.key});
+  final VoidCallback? onCreateOrder;
+
+  const PensionOrdersTab({super.key, this.onCreateOrder});
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +42,14 @@ class PensionOrdersTab extends StatelessWidget {
                     ?.copyWith(color: AppColors.textSecondary),
                 textAlign: TextAlign.center,
               ),
+              if (onCreateOrder != null) ...[
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  onPressed: onCreateOrder,
+                  icon: const Icon(Icons.playlist_add),
+                  label: const Text(AppStrings.newSupplierOrder),
+                ),
+              ],
             ],
           ),
         ),
@@ -48,7 +59,7 @@ class PensionOrdersTab extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: orders.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final order = orders[index];
         return _OrderTile(order: order, dateFormat: dateFormat);
@@ -78,7 +89,7 @@ class _OrderTile extends StatelessWidget {
       title: Text(dateFormat.format(order.createdAt)),
       subtitle: Text('$itemCount פריטים'),
       trailing: Text(
-        '₪${order.totalPrice.toStringAsFixed(0)}',
+        '₪${formatMoney(order.totalPrice)}',
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),
       onTap: () => Navigator.push(

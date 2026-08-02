@@ -84,15 +84,12 @@ class PensionOrder {
     buffer.writeln('הזמנה לספק — $formattedDate');
     buffer.writeln('────────────────');
     for (final line in lines) {
-      buffer.writeln('• ${line.productName}');
-      buffer.writeln('  כמות: ${line.quantity} | מחיר ליחידה: ₪${line.unitPrice.toStringAsFixed(0)} | סה"כ: ₪${line.lineTotal.toStringAsFixed(0)}');
-      if (line.imageUrl != null && line.imageUrl!.isNotEmpty) {
-        buffer.writeln('  תמונה: ${line.imageUrl}');
-      }
-      buffer.writeln();
+      buffer.writeln(
+        '• ${line.quantity}× ${line.productName} — ₪${line.lineTotal.toStringAsFixed(2)}',
+      );
     }
     buffer.writeln('────────────────');
-    buffer.writeln('סה"כ הזמנה: ₪${totalPrice.toStringAsFixed(0)}');
+    buffer.writeln('סה"כ הזמנה: ₪${totalPrice.toStringAsFixed(2)}');
     if (notes != null && notes!.trim().isNotEmpty) {
       buffer.writeln('הערות: ${notes!.trim()}');
     }

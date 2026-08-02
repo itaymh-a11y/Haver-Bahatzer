@@ -117,6 +117,11 @@ class Booking {
   final DateTime createdAt;
   final DateTime? paidAt;
 
+  /// Soft hold (intro meetings only): desired boarding range + kennel, non-blocking.
+  final DateTime? softHoldStartDate;
+  final DateTime? softHoldEndDate;
+  final String? softHoldKennelId;
+
   const Booking({
     required this.id,
     required this.dogIds,
@@ -138,6 +143,9 @@ class Booking {
     this.contractPhotoUrls = const [],
     required this.createdAt,
     this.paidAt,
+    this.softHoldStartDate,
+    this.softHoldEndDate,
+    this.softHoldKennelId,
   });
 
   // Legacy accessor — first photo URL for backward compat
@@ -190,6 +198,21 @@ class Booking {
       kennelChangeStartDate != null &&
       kennelChangeKennelId != null &&
       kennelChangeKennelId!.isNotEmpty;
+
+  bool get hasSoftHold =>
+      type == BookingType.introMeeting &&
+      softHoldStartDate != null &&
+      softHoldEndDate != null &&
+      softHoldKennelId != null &&
+      softHoldKennelId!.isNotEmpty;
+
+  bool softHoldCoversDay(DateTime day) {
+    if (!hasSoftHold) return false;
+    final d = dateOnly(day);
+    final start = dateOnly(softHoldStartDate!);
+    final end = dateOnly(softHoldEndDate!);
+    return !d.isBefore(start) && !d.isAfter(end);
+  }
 
   static DateTime dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
@@ -247,6 +270,10 @@ class Booking {
       createdAt:
           (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       paidAt: (data['paidAt'] as Timestamp?)?.toDate(),
+      softHoldStartDate:
+          (data['softHoldStartDate'] as Timestamp?)?.toDate(),
+      softHoldEndDate: (data['softHoldEndDate'] as Timestamp?)?.toDate(),
+      softHoldKennelId: data['softHoldKennelId'] as String?,
     );
   }
 
@@ -276,6 +303,13 @@ class Booking {
       'contractPhotoUrl': contractPhotoUrls.isNotEmpty ? contractPhotoUrls.first : null,
       'createdAt': Timestamp.fromDate(createdAt),
       'paidAt': paidAt != null ? Timestamp.fromDate(paidAt!) : null,
+      'softHoldStartDate': softHoldStartDate != null
+          ? Timestamp.fromDate(softHoldStartDate!)
+          : null,
+      'softHoldEndDate': softHoldEndDate != null
+          ? Timestamp.fromDate(softHoldEndDate!)
+          : null,
+      'softHoldKennelId': softHoldKennelId,
     };
   }
 
@@ -300,6 +334,9 @@ class Booking {
     List<String>? contractPhotoUrls,
     DateTime? createdAt,
     Object? paidAt = _sentinel,
+    Object? softHoldStartDate = _sentinel,
+    Object? softHoldEndDate = _sentinel,
+    Object? softHoldKennelId = _sentinel,
   }) {
     return Booking(
       id: id ?? this.id,
@@ -330,6 +367,15 @@ class Booking {
       contractPhotoUrls: contractPhotoUrls ?? this.contractPhotoUrls,
       createdAt: createdAt ?? this.createdAt,
       paidAt: paidAt == _sentinel ? this.paidAt : paidAt as DateTime?,
+      softHoldStartDate: softHoldStartDate == _sentinel
+          ? this.softHoldStartDate
+          : softHoldStartDate as DateTime?,
+      softHoldEndDate: softHoldEndDate == _sentinel
+          ? this.softHoldEndDate
+          : softHoldEndDate as DateTime?,
+      softHoldKennelId: softHoldKennelId == _sentinel
+          ? this.softHoldKennelId
+          : softHoldKennelId as String?,
     );
   }
 }

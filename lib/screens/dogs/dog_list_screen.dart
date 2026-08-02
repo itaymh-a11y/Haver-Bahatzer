@@ -11,8 +11,12 @@ class DogListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dogCount = context.watch<DogProvider>().dogs.length;
+
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.dogs)),
+      appBar: AppBar(
+        title: Text('${AppStrings.dogs} ($dogCount)'),
+      ),
       body: Column(
         children: [
           _SearchBar(),

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/utils/money_format.dart';
 import '../../models/pension_order_model.dart';
 import '../../providers/pension_provider.dart';
 
@@ -110,51 +111,41 @@ class PensionOrderDetailScreen extends StatelessWidget {
             style: Theme.of(context).textTheme.titleSmall,
           ),
           const SizedBox(height: 8),
-          ...order.lines.map((line) => Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: SizedBox(
-                          width: 72,
-                          height: 72,
-                          child: line.imageUrl != null
-                              ? Image.network(line.imageUrl!, fit: BoxFit.cover)
-                              : ColoredBox(
-                                  color:
-                                      AppColors.divider.withValues(alpha: 0.3),
-                                  child: const Icon(Icons.image_outlined),
-                                ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              line.productName,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${AppStrings.quantity}: ${line.quantity}',
-                            ),
-                            Text(
-                              '₪${line.unitPrice.toStringAsFixed(0)} × ${line.quantity} = ₪${line.lineTotal.toStringAsFixed(0)}',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+          ...order.lines.map(
+            (line) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${line.quantity}×',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
-                ),
-              )),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      line.productName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '₪${formatMoney(line.lineTotal)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           const Divider(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -164,7 +155,7 @@ class PensionOrderDetailScreen extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               Text(
-                '₪${order.totalPrice.toStringAsFixed(0)}',
+                '₪${formatMoney(order.totalPrice)}',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.primary,

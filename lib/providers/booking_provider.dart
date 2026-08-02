@@ -33,6 +33,16 @@ class IntactOppositeSexOverlap {
   });
 }
 
+class SoftHoldConflict {
+  final Booking introBooking;
+  final String? alternativeKennelId;
+
+  const SoftHoldConflict({
+    required this.introBooking,
+    this.alternativeKennelId,
+  });
+}
+
 class BookingProvider extends ChangeNotifier {
   final BookingService _bookingService;
   final StorageService _storageService;
@@ -58,23 +68,27 @@ class BookingProvider extends ChangeNotifier {
       _bookings.where((b) => b.status == BookingStatus.completed).toList();
 
   // Dashboard computed getters
-  List<Booking> get todayCheckIns {
-    final today = _todayDate;
+  List<Booking> checkInsForDay(DateTime day) {
+    final d = DateTime(day.year, day.month, day.day);
     return _bookings
         .where((b) =>
             b.type == BookingType.boarding &&
-            _sameDay(b.startDate, today))
+            _sameDay(b.startDate, d))
         .toList();
   }
 
-  List<Booking> get todayCheckOuts {
-    final today = _todayDate;
+  List<Booking> checkOutsForDay(DateTime day) {
+    final d = DateTime(day.year, day.month, day.day);
     return _bookings
         .where((b) =>
             b.type == BookingType.boarding &&
-            _sameDay(b.endDate, today))
+            _sameDay(b.endDate, d))
         .toList();
   }
+
+  List<Booking> get todayCheckIns => checkInsForDay(_todayDate);
+
+  List<Booking> get todayCheckOuts => checkOutsForDay(_todayDate);
 
   List<Booking> get todayIntros {
     final today = _todayDate;
@@ -107,6 +121,174 @@ class BookingProvider extends ChangeNotifier {
       final end = DateTime(b.endDate.year, b.endDate.month, b.endDate.day);
       return !d.isBefore(start) && !d.isAfter(end);
     }).toList();
+  }
+
+  /// Intro meetings whose soft hold covers [day] (may not be the meeting day).
+  List<Booking> getSoftHoldsForDay(DateTime day) {
+    return _bookings
+        .where((b) => b.hasSoftHold && b.softHoldCoversDay(day))
+        .toList();
+  }
+
+  /// Soft holds that overlap a hard boarding kennel assignment.
+  List<SoftHoldConflict> findSoftHoldConflicts({
+    required List<String> dogIds,
+    required DateTime start,
+    required DateTime end,
+    required String kennelId,
+    DateTime? kennelChangeStartDate,
+    String? kennelChangeKennelId,
+    String? excludeId,
+  }) {
+    final conflicts = <SoftHoldConflict>[];
+    final rangeStart = _dateOnly(start);
+    final rangeEnd = _dateOnly(end);
+
+    for (final hold in _bookings) {
+      if (!hold.hasSoftHold) continue;
+      if (hold.id == excludeId) continue;
+
+      final holdKennel = hold.softHoldKennelId!;
+      final holdStart = _dateOnly(hold.softHoldStartDate!);
+      final holdEnd = _dateOnly(hold.softHoldEndDate!);
+
+      // Day-by-day: does this boarding occupy the soft-hold kennel on an overlapping day?
+      var overlapsKennel = false;
+      for (var day = rangeStart;
+          !day.isAfter(rangeEnd);
+          day = day.add(const Duration(days: 1))) {
+        if (day.isBefore(holdStart) || day.isAfter(holdEnd)) continue;
+        final dayKennel = _kennelIdForDay(
+          kennelId: kennelId,
+          kennelChangeStartDate: kennelChangeStartDate,
+          kennelChangeKennelId: kennelChangeKennelId,
+          day: day,
+        );
+        if (dayKennel == holdKennel) {
+          overlapsKennel = true;
+          break;
+        }
+      }
+      if (!overlapsKennel) continue;
+
+      // Displaced if hard occupancy leaves no room for the soft-hold dogs
+      // (simulate after this booking is saved).
+      final displaced = !_softHoldHasCapacity(
+        hold: hold,
+        extraBoarding: (
+          dogIds: dogIds,
+          start: start,
+          end: end,
+          kennelId: kennelId,
+          kennelChangeStartDate: kennelChangeStartDate,
+          kennelChangeKennelId: kennelChangeKennelId,
+          excludeId: excludeId,
+        ),
+      );
+      if (!displaced) continue;
+
+      final altKennelId = suggestAlternativeKennel(
+        dogIds: hold.dogIds,
+        start: hold.softHoldStartDate!,
+        end: hold.softHoldEndDate!,
+        excludeKennelId: holdKennel,
+        excludeBookingId: excludeId,
+      );
+
+      conflicts.add(SoftHoldConflict(
+        introBooking: hold,
+        alternativeKennelId: altKennelId,
+      ));
+    }
+    return conflicts;
+  }
+
+  bool isSoftHoldDisplaced(Booking hold) {
+    if (!hold.hasSoftHold) return false;
+    return !_softHoldHasCapacity(hold: hold);
+  }
+
+  bool _softHoldHasCapacity({
+    required Booking hold,
+    ({
+      List<String> dogIds,
+      DateTime start,
+      DateTime end,
+      String kennelId,
+      DateTime? kennelChangeStartDate,
+      String? kennelChangeKennelId,
+      String? excludeId,
+    })? extraBoarding,
+  }) {
+    final kennelId = hold.softHoldKennelId!;
+    final kennel = KennelConstants.findById(kennelId);
+    if (kennel == null) return false;
+
+    final holdStart = _dateOnly(hold.softHoldStartDate!);
+    final holdEnd = _dateOnly(hold.softHoldEndDate!);
+    final needed = hold.dogIds.length;
+
+    for (var day = holdStart;
+        !day.isAfter(holdEnd);
+        day = day.add(const Duration(days: 1))) {
+      var occupied = 0;
+      for (final booking in _bookings) {
+        if (booking.type != BookingType.boarding) continue;
+        if (booking.kennelId == null) continue;
+        if (extraBoarding != null && booking.id == extraBoarding.excludeId) {
+          continue;
+        }
+        if (!_dayInBooking(day, booking)) continue;
+        if (booking.kennelIdForDate(day) != kennelId) continue;
+        if (kennel.maxDogs == 1 &&
+            _sameDay(day, booking.endDate) &&
+            extraBoarding != null &&
+            _sameDay(day, extraBoarding.start)) {
+          continue;
+        }
+        occupied += booking.dogIds.length;
+      }
+
+      if (extraBoarding != null) {
+        final dayKennel = _kennelIdForDay(
+          kennelId: extraBoarding.kennelId,
+          kennelChangeStartDate: extraBoarding.kennelChangeStartDate,
+          kennelChangeKennelId: extraBoarding.kennelChangeKennelId,
+          day: day,
+        );
+        final inExtraRange = !day.isBefore(_dateOnly(extraBoarding.start)) &&
+            !day.isAfter(_dateOnly(extraBoarding.end));
+        if (dayKennel == kennelId && inExtraRange) {
+          occupied += extraBoarding.dogIds.length;
+        }
+      }
+
+      if (occupied + needed > kennel.maxDogs) return false;
+    }
+    return true;
+  }
+
+  String? suggestAlternativeKennel({
+    required List<String> dogIds,
+    required DateTime start,
+    required DateTime end,
+    String? excludeKennelId,
+    String? excludeBookingId,
+  }) {
+    for (final kennel in KennelConstants.all) {
+      if (kennel.id == excludeKennelId) continue;
+      if (dogIds.length > kennel.maxDogs) continue;
+
+      final conflict = checkKennelConflict(
+        dogIds: dogIds,
+        start: start,
+        end: end,
+        kennelId: kennel.id,
+        excludeId: excludeBookingId,
+      );
+      if (conflict == null) return kennel.id;
+    }
+    return null;
   }
 
   List<Booking> boardingBookingsOverlappingRange(
