@@ -136,6 +136,7 @@ class BookingProvider extends ChangeNotifier {
     required DateTime start,
     required DateTime end,
     required String kennelId,
+    List<KennelChange> kennelChanges = const [],
     DateTime? kennelChangeStartDate,
     String? kennelChangeKennelId,
     String? excludeId,
@@ -143,6 +144,11 @@ class BookingProvider extends ChangeNotifier {
     final conflicts = <SoftHoldConflict>[];
     final rangeStart = _dateOnly(start);
     final rangeEnd = _dateOnly(end);
+    final changes = _resolveKennelChanges(
+      kennelChanges: kennelChanges,
+      kennelChangeStartDate: kennelChangeStartDate,
+      kennelChangeKennelId: kennelChangeKennelId,
+    );
 
     for (final hold in _bookings) {
       if (!hold.hasSoftHold) continue;
@@ -160,8 +166,7 @@ class BookingProvider extends ChangeNotifier {
         if (day.isBefore(holdStart) || day.isAfter(holdEnd)) continue;
         final dayKennel = _kennelIdForDay(
           kennelId: kennelId,
-          kennelChangeStartDate: kennelChangeStartDate,
-          kennelChangeKennelId: kennelChangeKennelId,
+          kennelChanges: changes,
           day: day,
         );
         if (dayKennel == holdKennel) {
@@ -180,8 +185,7 @@ class BookingProvider extends ChangeNotifier {
           start: start,
           end: end,
           kennelId: kennelId,
-          kennelChangeStartDate: kennelChangeStartDate,
-          kennelChangeKennelId: kennelChangeKennelId,
+          kennelChanges: changes,
           excludeId: excludeId,
         ),
       );
@@ -215,8 +219,7 @@ class BookingProvider extends ChangeNotifier {
       DateTime start,
       DateTime end,
       String kennelId,
-      DateTime? kennelChangeStartDate,
-      String? kennelChangeKennelId,
+      List<KennelChange> kennelChanges,
       String? excludeId,
     })? extraBoarding,
   }) {
@@ -252,8 +255,7 @@ class BookingProvider extends ChangeNotifier {
       if (extraBoarding != null) {
         final dayKennel = _kennelIdForDay(
           kennelId: extraBoarding.kennelId,
-          kennelChangeStartDate: extraBoarding.kennelChangeStartDate,
-          kennelChangeKennelId: extraBoarding.kennelChangeKennelId,
+          kennelChanges: extraBoarding.kennelChanges,
           day: day,
         );
         final inExtraRange = !day.isBefore(_dateOnly(extraBoarding.start)) &&
@@ -549,11 +551,18 @@ class BookingProvider extends ChangeNotifier {
     required DateTime start,
     required DateTime end,
     required String? kennelId,
+    List<KennelChange> kennelChanges = const [],
     DateTime? kennelChangeStartDate,
     String? kennelChangeKennelId,
     String? excludeId,
   }) {
     if (kennelId == null) return null;
+
+    final changes = _resolveKennelChanges(
+      kennelChanges: kennelChanges,
+      kennelChangeStartDate: kennelChangeStartDate,
+      kennelChangeKennelId: kennelChangeKennelId,
+    );
 
     final rangeStart = _dateOnly(start);
     final rangeEnd = _dateOnly(end);
@@ -563,8 +572,7 @@ class BookingProvider extends ChangeNotifier {
         day = day.add(const Duration(days: 1))) {
       final dayKennelId = _kennelIdForDay(
         kennelId: kennelId,
-        kennelChangeStartDate: kennelChangeStartDate,
-        kennelChangeKennelId: kennelChangeKennelId,
+        kennelChanges: changes,
         day: day,
       );
       if (dayKennelId == null) continue;
@@ -604,6 +612,7 @@ class BookingProvider extends ChangeNotifier {
   bool hasSameDayTurnoverWarning({
     required String? kennelId,
     required DateTime start,
+    List<KennelChange> kennelChanges = const [],
     DateTime? kennelChangeStartDate,
     String? kennelChangeKennelId,
     String? excludeId,
@@ -612,14 +621,19 @@ class BookingProvider extends ChangeNotifier {
         _hasSameDayCheckoutInKennel(kennelId, start, excludeId: excludeId)) {
       return true;
     }
-    if (kennelChangeStartDate != null &&
-        kennelChangeKennelId != null &&
-        _hasSameDayCheckoutInKennel(
-          kennelChangeKennelId,
-          kennelChangeStartDate,
-          excludeId: excludeId,
-        )) {
-      return true;
+    final changes = _resolveKennelChanges(
+      kennelChanges: kennelChanges,
+      kennelChangeStartDate: kennelChangeStartDate,
+      kennelChangeKennelId: kennelChangeKennelId,
+    );
+    for (final change in changes) {
+      if (_hasSameDayCheckoutInKennel(
+        change.kennelId,
+        change.startDate,
+        excludeId: excludeId,
+      )) {
+        return true;
+      }
     }
     return false;
   }
@@ -731,19 +745,41 @@ class BookingProvider extends ChangeNotifier {
 
   String? _kennelIdForDay({
     required String? kennelId,
-    required DateTime? kennelChangeStartDate,
-    required String? kennelChangeKennelId,
+    required List<KennelChange> kennelChanges,
     required DateTime day,
   }) {
     if (kennelId == null) return null;
+    var result = kennelId;
+    final d = _dateOnly(day);
+    for (final change in kennelChanges) {
+      if (!d.isBefore(_dateOnly(change.startDate))) {
+        result = change.kennelId;
+      }
+    }
+    return result;
+  }
+
+  List<KennelChange> _resolveKennelChanges({
+    List<KennelChange> kennelChanges = const [],
+    DateTime? kennelChangeStartDate,
+    String? kennelChangeKennelId,
+  }) {
+    if (kennelChanges.isNotEmpty) {
+      final list = [...kennelChanges]
+        ..sort((a, b) => a.startDate.compareTo(b.startDate));
+      return list;
+    }
     if (kennelChangeStartDate != null &&
         kennelChangeKennelId != null &&
         kennelChangeKennelId.isNotEmpty) {
-      final d = _dateOnly(day);
-      final changeStart = _dateOnly(kennelChangeStartDate);
-      if (!d.isBefore(changeStart)) return kennelChangeKennelId;
+      return [
+        KennelChange(
+          startDate: kennelChangeStartDate,
+          kennelId: kennelChangeKennelId,
+        ),
+      ];
     }
-    return kennelId;
+    return const [];
   }
 
   bool _dayInBooking(DateTime day, Booking booking) {

@@ -53,6 +53,10 @@
 	<string>האפליקציה צריכה גישה למצלמה כדי לצלם תמונות של כלבים</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>האפליקציה צריכה גישה לגלריה כדי לבחור תמונות של כלבים</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

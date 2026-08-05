@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import '../core/constants/app_strings.dart';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
@@ -18,9 +21,20 @@ class AuthProvider extends ChangeNotifier {
 
   AuthProvider(this._authService) {
     _authService.authStateChanges.listen((user) {
-      _status = user != null ? AuthStatus.authenticated : AuthStatus.unauthenticated;
+      _status =
+          user != null ? AuthStatus.authenticated : AuthStatus.unauthenticated;
       notifyListeners();
+      unawaited(_syncNotifications(user));
     });
+  }
+
+  Future<void> _syncNotifications(User? user) async {
+    if (kIsWeb) return;
+    if (user != null) {
+      await NotificationService.instance.registerForUser(user.uid);
+    } else {
+      await NotificationService.instance.unregister();
+    }
   }
 
   Future<void> login({required String email, required String password}) async {
@@ -29,7 +43,8 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _authService.signInWithEmailAndPassword(email: email, password: password);
+      await _authService.signInWithEmailAndPassword(
+          email: email, password: password);
     } on FirebaseAuthException catch (e) {
       _errorMessage = _mapFirebaseError(e.code);
     } catch (_) {

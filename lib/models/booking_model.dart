@@ -95,13 +95,48 @@ class PaymentRecord {
   }
 }
 
+class KennelChange {
+  final DateTime startDate;
+  final String kennelId;
+
+  const KennelChange({
+    required this.startDate,
+    required this.kennelId,
+  });
+
+  factory KennelChange.fromMap(Map<String, dynamic> map) {
+    return KennelChange(
+      startDate:
+          (map['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      kennelId: map['kennelId'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'startDate': Timestamp.fromDate(startDate),
+      'kennelId': kennelId,
+    };
+  }
+
+  KennelChange copyWith({DateTime? startDate, String? kennelId}) {
+    return KennelChange(
+      startDate: startDate ?? this.startDate,
+      kennelId: kennelId ?? this.kennelId,
+    );
+  }
+}
+
 class Booking {
   final String id;
   final List<String> dogIds;
   final BookingType type;
   final String? kennelId;
+  /// Legacy single mid-stay change (kept for old documents; prefer [kennelChanges]).
   final DateTime? kennelChangeStartDate;
   final String? kennelChangeKennelId;
+  /// Ordered mid-stay kennel moves (preferred). Empty = use legacy fields if set.
+  final List<KennelChange> kennelChanges;
   final DateTime startDate;
   final DateTime endDate;
   final String? meetingTime;
@@ -129,6 +164,7 @@ class Booking {
     this.kennelId,
     this.kennelChangeStartDate,
     this.kennelChangeKennelId,
+    this.kennelChanges = const [],
     required this.startDate,
     required this.endDate,
     this.meetingTime,
@@ -194,10 +230,27 @@ class Booking {
     return raw < 1 ? 1 : raw;
   }
 
-  bool get hasKennelChange =>
-      kennelChangeStartDate != null &&
-      kennelChangeKennelId != null &&
-      kennelChangeKennelId!.isNotEmpty;
+  bool get hasKennelChange => effectiveKennelChanges.isNotEmpty;
+
+  /// Resolved mid-stay moves: new list if present, else legacy single change.
+  List<KennelChange> get effectiveKennelChanges {
+    if (kennelChanges.isNotEmpty) {
+      final list = [...kennelChanges]
+        ..sort((a, b) => dateOnly(a.startDate).compareTo(dateOnly(b.startDate)));
+      return list;
+    }
+    if (kennelChangeStartDate != null &&
+        kennelChangeKennelId != null &&
+        kennelChangeKennelId!.isNotEmpty) {
+      return [
+        KennelChange(
+          startDate: kennelChangeStartDate!,
+          kennelId: kennelChangeKennelId!,
+        ),
+      ];
+    }
+    return const [];
+  }
 
   bool get hasSoftHold =>
       type == BookingType.introMeeting &&
@@ -218,12 +271,14 @@ class Booking {
 
   String? kennelIdForDate(DateTime day) {
     if (kennelId == null) return null;
-    if (hasKennelChange) {
-      final d = dateOnly(day);
-      final changeStart = dateOnly(kennelChangeStartDate!);
-      if (!d.isBefore(changeStart)) return kennelChangeKennelId;
+    final d = dateOnly(day);
+    var result = kennelId;
+    for (final change in effectiveKennelChanges) {
+      if (!d.isBefore(dateOnly(change.startDate))) {
+        result = change.kennelId;
+      }
     }
-    return kennelId;
+    return result;
   }
 
   Map<String, int> kennelDayCounts() {
@@ -253,6 +308,7 @@ class Booking {
       kennelChangeStartDate:
           (data['kennelChangeStartDate'] as Timestamp?)?.toDate(),
       kennelChangeKennelId: data['kennelChangeKennelId'] as String?,
+      kennelChanges: _parseKennelChanges(data),
       startDate:
           (data['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       endDate: (data['endDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -286,6 +342,7 @@ class Booking {
           ? Timestamp.fromDate(kennelChangeStartDate!)
           : null,
       'kennelChangeKennelId': kennelChangeKennelId,
+      'kennelChanges': kennelChanges.map((c) => c.toMap()).toList(),
       'startDate': Timestamp.fromDate(startDate),
       'endDate': Timestamp.fromDate(endDate),
       'meetingTime': meetingTime,
@@ -320,6 +377,7 @@ class Booking {
     String? kennelId,
     Object? kennelChangeStartDate = _sentinel,
     Object? kennelChangeKennelId = _sentinel,
+    List<KennelChange>? kennelChanges,
     DateTime? startDate,
     DateTime? endDate,
     String? meetingTime,
@@ -349,6 +407,7 @@ class Booking {
       kennelChangeKennelId: kennelChangeKennelId == _sentinel
           ? this.kennelChangeKennelId
           : kennelChangeKennelId as String?,
+      kennelChanges: kennelChanges ?? this.kennelChanges,
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
       meetingTime: meetingTime ?? this.meetingTime,
@@ -381,6 +440,15 @@ class Booking {
 }
 
 const Object _sentinel = Object();
+
+List<KennelChange> _parseKennelChanges(Map<String, dynamic> data) {
+  final raw = data['kennelChanges'];
+  if (raw is! List || raw.isEmpty) return const [];
+  return raw
+      .map((e) => KennelChange.fromMap((e as Map).cast<String, dynamic>()))
+      .where((c) => c.kennelId.isNotEmpty)
+      .toList();
+}
 
 List<String> _parseContractUrls(Map<String, dynamic> data) {
   final list = data['contractPhotoUrls'];

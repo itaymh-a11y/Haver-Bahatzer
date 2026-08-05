@@ -222,9 +222,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     final kennelInfo = liveBooking.kennelId != null
         ? KennelConstants.findById(liveBooking.kennelId!)
         : null;
-    final changeKennelInfo = liveBooking.hasKennelChange
-        ? KennelConstants.findById(liveBooking.kennelChangeKennelId!)
-        : null;
+    final kennelChanges = liveBooking.effectiveKennelChanges;
 
     return Scaffold(
       appBar: AppBar(
@@ -348,23 +346,25 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             );
           }),
 
-          if (kennelInfo != null && !liveBooking.hasKennelChange)
+          if (kennelInfo != null && kennelChanges.isEmpty)
             _DetailRow(label: AppStrings.kennel, value: kennelInfo.hebrewName),
-          if (kennelInfo != null &&
-              liveBooking.hasKennelChange &&
-              changeKennelInfo != null) ...[
+          if (kennelInfo != null && kennelChanges.isNotEmpty) ...[
             _DetailRow(
               label: AppStrings.initialKennel,
               value: kennelInfo.hebrewName,
             ),
-            _DetailRow(
-              label: AppStrings.newKennel,
-              value: changeKennelInfo.hebrewName,
-            ),
-            _DetailRow(
-              label: AppStrings.kennelChangeStartDate,
-              value: dateFormat.format(liveBooking.kennelChangeStartDate!),
-            ),
+            for (var i = 0; i < kennelChanges.length; i++) ...[
+              _DetailRow(
+                label: '${AppStrings.newKennel} ${i + 1}',
+                value: KennelConstants.findById(kennelChanges[i].kennelId)
+                        ?.hebrewName ??
+                    kennelChanges[i].kennelId,
+              ),
+              _DetailRow(
+                label: '${AppStrings.kennelChangeStartDate} ${i + 1}',
+                value: dateFormat.format(kennelChanges[i].startDate),
+              ),
+            ],
           ],
 
           if (liveBooking.type == BookingType.boarding) ...[

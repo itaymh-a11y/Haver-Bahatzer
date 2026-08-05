@@ -66,14 +66,15 @@ class BookingCard extends StatelessWidget {
     final kennelInfo = booking.kennelId != null
         ? KennelConstants.findById(booking.kennelId!)
         : null;
-    final changeKennelInfo = booking.hasKennelChange
-        ? KennelConstants.findById(booking.kennelChangeKennelId!)
-        : null;
+    final changeNames = booking.effectiveKennelChanges
+        .map((c) => KennelConstants.findById(c.kennelId)?.hebrewName)
+        .whereType<String>()
+        .toList();
     final kennelLabel = kennelInfo == null
         ? null
-        : booking.hasKennelChange && changeKennelInfo != null
-            ? '${kennelInfo.hebrewName} → ${changeKennelInfo.hebrewName}'
-            : kennelInfo.hebrewName;
+        : changeNames.isEmpty
+            ? kennelInfo.hebrewName
+            : [kennelInfo.hebrewName, ...changeNames].join(' → ');
 
     return Card(
       clipBehavior: Clip.hardEdge,

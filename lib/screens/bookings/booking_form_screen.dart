@@ -62,9 +62,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   late bool _chargeCheckoutDay;
   late bool _hasRateChange;
   DateTime? _rateChangeStartDate;
-  late bool _hasKennelChange;
-  DateTime? _kennelChangeStartDate;
-  String? _kennelChangeKennelId;
+  late List<KennelChange> _kennelChanges;
   late bool _hasSoftHold;
   late DateTime _softHoldStartDate;
   late DateTime _softHoldEndDate;
@@ -105,9 +103,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
     _chargeCheckoutDay = b?.chargeCheckoutDay ?? true;
     _hasRateChange = b?.rateChangeStartDate != null && b?.rateChangeDailyRate != null;
     _rateChangeStartDate = b?.rateChangeStartDate;
-    _hasKennelChange = b?.hasKennelChange ?? false;
-    _kennelChangeStartDate = b?.kennelChangeStartDate;
-    _kennelChangeKennelId = b?.kennelChangeKennelId;
+    _kennelChanges = List<KennelChange>.from(b?.effectiveKennelChanges ?? const []);
     _hasSoftHold = b?.hasSoftHold ?? false;
     _softHoldStartDate = b?.softHoldStartDate ?? _startDate;
     _softHoldEndDate = b?.softHoldEndDate ?? _startDate;
@@ -174,35 +170,94 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
     });
   }
 
-  Future<void> _pickKennelChangeDate() async {
-    final firstChangeDay = _startDate.add(const Duration(days: 1));
-    if (firstChangeDay.isAfter(_endDate)) return;
+  Future<void> _pickKennelChangeDate(int index) async {
+    final firstDate = _minKennelChangeDate(index);
+    final lastDate = _maxKennelChangeDate(index);
+    if (firstDate.isAfter(lastDate)) return;
+
+    final current = _kennelChanges[index].startDate;
+    final initial = current.isBefore(firstDate)
+        ? firstDate
+        : (current.isAfter(lastDate) ? lastDate : current);
 
     final picked = await showDatePicker(
       context: context,
-      initialDate: _kennelChangeStartDate ?? firstChangeDay,
-      firstDate: firstChangeDay,
-      lastDate: _endDate,
+      initialDate: initial,
+      firstDate: firstDate,
+      lastDate: lastDate,
       locale: const Locale('he', 'IL'),
     );
     if (picked == null) return;
-    setState(() => _kennelChangeStartDate = picked);
+    setState(() {
+      _kennelChanges[index] = _kennelChanges[index].copyWith(startDate: picked);
+    });
   }
 
-  void _clampKennelChangeDate() {
-    if (_kennelChangeStartDate == null) return;
+  DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  DateTime _minKennelChangeDate(int index) {
+    final firstChangeDay = _startDate.add(const Duration(days: 1));
+    if (index <= 0) return firstChangeDay;
+    return _dateOnly(_kennelChanges[index - 1].startDate)
+        .add(const Duration(days: 1));
+  }
+
+  DateTime _maxKennelChangeDate(int index) {
+    if (index >= _kennelChanges.length - 1) return _endDate;
+    return _dateOnly(_kennelChanges[index + 1].startDate)
+        .subtract(const Duration(days: 1));
+  }
+
+  void _addKennelChange() {
+    final firstChangeDay = _startDate.add(const Duration(days: 1));
+    if (firstChangeDay.isAfter(_endDate)) return;
+
+    DateTime suggested;
+    if (_kennelChanges.isEmpty) {
+      suggested = firstChangeDay;
+    } else {
+      suggested = _dateOnly(_kennelChanges.last.startDate)
+          .add(const Duration(days: 1));
+      if (suggested.isAfter(_endDate)) suggested = _endDate;
+      if (suggested.isBefore(firstChangeDay)) suggested = firstChangeDay;
+    }
+
+    setState(() {
+      _kennelChanges.add(KennelChange(startDate: suggested, kennelId: ''));
+    });
+  }
+
+  void _removeKennelChange(int index) {
+    setState(() => _kennelChanges.removeAt(index));
+  }
+
+  void _clampKennelChanges() {
     final firstChangeDay = _startDate.add(const Duration(days: 1));
     if (firstChangeDay.isAfter(_endDate)) {
-      _kennelChangeStartDate = null;
-      _hasKennelChange = false;
-      _kennelChangeKennelId = null;
+      _kennelChanges = [];
       return;
     }
-    if (_kennelChangeStartDate!.isBefore(firstChangeDay)) {
-      _kennelChangeStartDate = firstChangeDay;
-    } else if (_kennelChangeStartDate!.isAfter(_endDate)) {
-      _kennelChangeStartDate = _endDate;
+
+    final clamped = <KennelChange>[];
+    DateTime? prevDate;
+    for (final change in _kennelChanges) {
+      var date = _dateOnly(change.startDate);
+      if (date.isBefore(firstChangeDay)) date = firstChangeDay;
+      if (date.isAfter(_endDate)) date = _endDate;
+      if (prevDate != null && !date.isAfter(prevDate)) {
+        date = prevDate.add(const Duration(days: 1));
+        if (date.isAfter(_endDate)) break;
+      }
+      clamped.add(change.copyWith(startDate: date));
+      prevDate = date;
     }
+    _kennelChanges = clamped;
+  }
+
+  List<KennelChange> get _sortedKennelChanges {
+    final list = [..._kennelChanges]
+      ..sort((a, b) => a.startDate.compareTo(b.startDate));
+    return list;
   }
 
   Future<void> _editPaymentAt(int index) async {
@@ -324,7 +379,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
           _rateChangeStartDate = _endDate;
         }
       }
-      _clampKennelChangeDate();
+      _clampKennelChanges();
     });
     _recalcPrice();
   }
@@ -453,27 +508,51 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
     }
 
     if (_selectedType == BookingType.boarding && _selectedKennelId != null) {
-      if (_hasKennelChange) {
-        if (_kennelChangeStartDate == null ||
-            !_kennelChangeStartDate!.isAfter(_startDate)) {
+      final kennelChanges = _sortedKennelChanges;
+
+      for (var i = 0; i < kennelChanges.length; i++) {
+        final change = kennelChanges[i];
+        if (!change.startDate.isAfter(_startDate) ||
+            change.startDate.isAfter(_endDate)) {
           if (mounted) {
             showErrorSnackbar(context, AppStrings.kennelChangeDateInvalid);
           }
           return;
         }
-        if (_kennelChangeKennelId == null ||
-            _kennelChangeKennelId == _selectedKennelId) {
+        if (i > 0 &&
+            !change.startDate
+                .isAfter(_dateOnly(kennelChanges[i - 1].startDate))) {
           if (mounted) {
-            showErrorSnackbar(context, AppStrings.kennelChangeSameKennel);
+            showErrorSnackbar(
+                context, AppStrings.kennelChangeChronologyInvalid);
+          }
+          return;
+        }
+        if (change.kennelId.isEmpty) {
+          if (mounted) {
+            showErrorSnackbar(context, AppStrings.kennelChangeMissingKennel);
+          }
+          return;
+        }
+        final previousKennel =
+            i == 0 ? _selectedKennelId : kennelChanges[i - 1].kennelId;
+        if (change.kennelId == previousKennel) {
+          if (mounted) {
+            showErrorSnackbar(
+              context,
+              i == 0
+                  ? AppStrings.kennelChangeSameKennel
+                  : AppStrings.kennelChangeSameAsPrevious,
+            );
           }
           return;
         }
       }
 
-      final kennelsToCheck = <String>{_selectedKennelId!};
-      if (_hasKennelChange && _kennelChangeKennelId != null) {
-        kennelsToCheck.add(_kennelChangeKennelId!);
-      }
+      final kennelsToCheck = <String>{
+        _selectedKennelId!,
+        ...kennelChanges.map((c) => c.kennelId),
+      };
 
       for (final kennelId in kennelsToCheck) {
         final kennel = KennelConstants.findById(kennelId);
@@ -509,10 +588,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         start: _startDate,
         end: _endDate,
         kennelId: _selectedKennelId,
-        kennelChangeStartDate:
-            _hasKennelChange ? _kennelChangeStartDate : null,
-        kennelChangeKennelId:
-            _hasKennelChange ? _kennelChangeKennelId : null,
+        kennelChanges: kennelChanges,
         excludeId: widget.booking?.id,
       );
       if (kennelConflict != null) {
@@ -525,10 +601,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         start: _startDate,
         end: _endDate,
         kennelId: _selectedKennelId!,
-        kennelChangeStartDate:
-            _hasKennelChange ? _kennelChangeStartDate : null,
-        kennelChangeKennelId:
-            _hasKennelChange ? _kennelChangeKennelId : null,
+        kennelChanges: kennelChanges,
         excludeId: widget.booking?.id,
       );
       if (softHoldConflicts.isNotEmpty) {
@@ -575,10 +648,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
       final hasSameDayCheckout = provider.hasSameDayTurnoverWarning(
         kennelId: _selectedKennelId,
         start: _startDate,
-        kennelChangeStartDate:
-            _hasKennelChange ? _kennelChangeStartDate : null,
-        kennelChangeKennelId:
-            _hasKennelChange ? _kennelChangeKennelId : null,
+        kennelChanges: _sortedKennelChanges,
         excludeId: widget.booking?.id,
       );
       if (hasSameDayCheckout) {
@@ -747,10 +817,17 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         dogIds: _selectedDogIds,
         type: _selectedType,
         kennelId: _selectedType == BookingType.boarding ? _selectedKennelId : null,
-        kennelChangeStartDate:
-            _hasKennelChange ? _kennelChangeStartDate : null,
-        kennelChangeKennelId:
-            _hasKennelChange ? _kennelChangeKennelId : null,
+        kennelChanges: _selectedType == BookingType.boarding
+            ? _sortedKennelChanges
+            : const [],
+        kennelChangeStartDate: _selectedType == BookingType.boarding &&
+                _sortedKennelChanges.isNotEmpty
+            ? _sortedKennelChanges.first.startDate
+            : null,
+        kennelChangeKennelId: _selectedType == BookingType.boarding &&
+                _sortedKennelChanges.isNotEmpty
+            ? _sortedKennelChanges.first.kennelId
+            : null,
         startDate: _startDate,
         endDate: _selectedType == BookingType.boarding ? _endDate : _startDate,
         meetingTime: _selectedType == BookingType.introMeeting ? meetingTimeStr : null,
@@ -804,10 +881,17 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         dogIds: _selectedDogIds,
         type: _selectedType,
         kennelId: _selectedType == BookingType.boarding ? _selectedKennelId : null,
-        kennelChangeStartDate:
-            _hasKennelChange ? _kennelChangeStartDate : null,
-        kennelChangeKennelId:
-            _hasKennelChange ? _kennelChangeKennelId : null,
+        kennelChanges: _selectedType == BookingType.boarding
+            ? _sortedKennelChanges
+            : const [],
+        kennelChangeStartDate: _selectedType == BookingType.boarding &&
+                _sortedKennelChanges.isNotEmpty
+            ? _sortedKennelChanges.first.startDate
+            : null,
+        kennelChangeKennelId: _selectedType == BookingType.boarding &&
+                _sortedKennelChanges.isNotEmpty
+            ? _sortedKennelChanges.first.kennelId
+            : null,
         startDate: _startDate,
         endDate: _selectedType == BookingType.boarding ? _endDate : _startDate,
         meetingTime: _selectedType == BookingType.introMeeting ? meetingTimeStr : null,
@@ -957,7 +1041,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
               if (_selectedType == BookingType.boarding) ...[
                 KennelSelector(
                   selectedKennelId: _selectedKennelId,
-                  labelText: _hasKennelChange
+                  labelText: _kennelChanges.isNotEmpty
                       ? AppStrings.initialKennel
                       : AppStrings.kennel,
                   onChanged: (id) => setState(() => _selectedKennelId = id),
@@ -976,41 +1060,67 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                   dateFormat: _dateFormat,
                   onTap: () => _pickDate(isStart: false),
                 ),
-                SwitchListTile.adaptive(
-                  value: _hasKennelChange,
-                  onChanged: (v) => setState(() {
-                    _hasKennelChange = v;
-                    if (!v) {
-                      _kennelChangeStartDate = null;
-                      _kennelChangeKennelId = null;
-                    } else {
-                      final firstChangeDay =
-                          _startDate.add(const Duration(days: 1));
-                      if (!firstChangeDay.isAfter(_endDate)) {
-                        _kennelChangeStartDate ??= firstChangeDay;
-                      }
-                    }
-                  }),
-                  title: const Text(AppStrings.changeKennelMidStay),
-                  contentPadding: EdgeInsets.zero,
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        AppStrings.changeKennelMidStay,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _startDate
+                              .add(const Duration(days: 1))
+                              .isAfter(_endDate)
+                          ? null
+                          : _addKennelChange,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text(AppStrings.addKennelChange),
+                    ),
+                  ],
                 ),
-                if (_hasKennelChange) ...[
-                  _DateTile(
-                    label: AppStrings.kennelChangeStartDate,
-                    date: _kennelChangeStartDate ??
-                        _startDate.add(const Duration(days: 1)),
-                    dateFormat: _dateFormat,
-                    onTap: _pickKennelChangeDate,
+                for (var i = 0; i < _kennelChanges.length; i++) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          children: [
+                            _DateTile(
+                              label:
+                                  '${AppStrings.kennelChangeStartDate} ${i + 1}',
+                              date: _kennelChanges[i].startDate,
+                              dateFormat: _dateFormat,
+                              onTap: () => _pickKennelChangeDate(i),
+                            ),
+                            const SizedBox(height: 12),
+                            KennelSelector(
+                              selectedKennelId:
+                                  _kennelChanges[i].kennelId.isEmpty
+                                      ? null
+                                      : _kennelChanges[i].kennelId,
+                              labelText: AppStrings.newKennel,
+                              onChanged: (id) => setState(() {
+                                _kennelChanges[i] = KennelChange(
+                                  startDate: _kennelChanges[i].startDate,
+                                  kennelId: id ?? '',
+                                );
+                              }),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: AppStrings.delete,
+                        onPressed: () => _removeKennelChange(i),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  KennelSelector(
-                    selectedKennelId: _kennelChangeKennelId,
-                    labelText: AppStrings.newKennel,
-                    onChanged: (id) =>
-                        setState(() => _kennelChangeKennelId = id),
-                  ),
-                  const SizedBox(height: 16),
                 ],
+                if (_kennelChanges.isNotEmpty) const SizedBox(height: 16),
                 SwitchListTile.adaptive(
                   value: _chargeCheckoutDay,
                   onChanged: (v) => setState(() {

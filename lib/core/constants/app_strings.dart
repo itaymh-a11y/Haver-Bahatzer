@@ -135,9 +135,15 @@ class AppStrings {
   static const kennelChangeStartDate = 'תאריך מעבר';
   static const newKennel = 'כלוב חדש';
   static const initialKennel = 'כלוב בהתחלה';
+  static const addKennelChange = 'הוסף מעבר כלוב';
   static const kennelChangeDateInvalid =
       'תאריך המעבר חייב להיות אחרי תאריך הכניסה';
   static const kennelChangeSameKennel = 'יש לבחור כלוב שונה מהכלוב הראשוני';
+  static const kennelChangeSameAsPrevious =
+      'יש לבחור כלוב שונה מהכלוב הקודם בשהות';
+  static const kennelChangeChronologyInvalid =
+      'תאריכי המעבר חייבים להיות בסדר כרונולוגי עולה';
+  static const kennelChangeMissingKennel = 'יש לבחור כלוב לכל מעבר';
   static const rateChangeStartDate = 'החל מתאריך';
   static const paymentMethod = 'אמצעי תשלום';
   static const bit = 'ביט';
