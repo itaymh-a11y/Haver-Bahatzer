@@ -4,6 +4,7 @@ import '../../core/constants/app_strings.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/booking_provider.dart';
 import '../../providers/dog_provider.dart';
+import '../../providers/employee_provider.dart';
 import '../../providers/pension_provider.dart';
 import '../../providers/vacation_provider.dart';
 import '../../widgets/dashboard/daily_feed_card.dart';
@@ -12,6 +13,7 @@ import '../../widgets/dashboard/occupancy_bar.dart';
 import '../bookings/booking_list_screen.dart';
 import '../calendar/calendar_screen.dart';
 import '../dogs/dog_list_screen.dart';
+import '../employees/employees_hub_screen.dart';
 import '../financials/financials_screen.dart';
 import '../pension/pension_hub_screen.dart';
 import '../settings/tag_settings_screen.dart';
@@ -40,6 +42,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context.read<BookingProvider>().startListening();
       context.read<VacationProvider>().startListening();
       context.read<PensionProvider>().startListening();
+      context.read<EmployeeProvider>().startListening();
     });
   }
 
@@ -163,6 +166,17 @@ class _NavigationGrid extends StatelessWidget {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const PensionHubScreen()),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _NavCard(
+                icon: Icons.badge_outlined,
+                label: AppStrings.employees,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const EmployeesHubScreen()),
                 ),
               ),
             ),

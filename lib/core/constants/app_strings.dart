@@ -227,6 +227,65 @@ class AppStrings {
   static const productUpdated = 'המוצר עודכן בהצלחה';
   static const productDeleted = 'המוצר נמחק';
 
+  // Employees / shifts
+  static const employees = 'עובדים';
+  static const manageEmployees = 'ניהול עובדים';
+  static const attendance = 'נוכחות';
+  static const monthlySummary = 'סיכום חודשי';
+  static const addEmployee = 'הוסף עובד';
+  static const editEmployee = 'ערוך עובד';
+  static const employeeName = 'שם העובד';
+  static const hourlyWage = 'שכר שעתי';
+  static const noEmployees = 'אין עובדים עדיין';
+  static const noEmployeesSubtitle = 'הוסף עובד עם שם ושכר שעתי כדי להתחיל לתעד משמרות';
+  static const employeeAdded = 'העובד נוסף בהצלחה';
+  static const employeeUpdated = 'העובד עודכן בהצלחה';
+  static const employeeDeleted = 'העובד נמחק';
+  static const employeeDeactivated = 'העובד סומן כלא פעיל כי יש לו משמרות שמורות';
+  static const confirmDeleteEmployee = 'למחוק את העובד?';
+  static const confirmDeactivateEmployee =
+      'לעובד זה יש משמרות. במקום מחיקה הוא יסומן כלא פעיל וההיסטוריה תישמר.';
+  static const inactiveEmployee = 'לא פעיל';
+  static const activateEmployee = 'הפעל מחדש';
+  static const startShift = 'התחל משמרת';
+  static const endShift = 'סיים משמרת';
+  static const addShift = 'הוסף משמרת';
+  static const editShift = 'ערוך משמרת';
+  static const shiftStarted = 'המשמרת התחילה';
+  static const shiftEnded = 'המשמרת הסתיימה';
+  static const shiftSaved = 'המשמרת נשמרה';
+  static const shiftDeleted = 'המשמרת נמחקה';
+  static const deleteShift = 'מחק משמרת';
+  static const confirmDeleteShift = 'למחוק את המשמרת?';
+  static const confirmDeleteShiftMessage =
+      'המשמרת תוסר ולא תיספר בסיכום החודשי.';
+  static const shiftAlreadyOpen = 'כבר יש משמרת פתוחה לעובד זה. סיימו אותה קודם.';
+  static const shiftEndBeforeStart = 'שעת הסיום חייבת להיות אחרי שעת ההתחלה';
+  static const openShift = 'משמרת פתוחה';
+  static const openShiftFromPreviousDay = 'יש משמרת פתוחה מיום קודם';
+  static const noShiftsToday = 'אין משמרות היום';
+  static const noShiftsTodaySubtitle = 'לחצו התחל משמרת או הוסיפו משמרת ידנית';
+  static const noShiftsThisMonth = 'אין משמרות בחודש זה';
+  static const todaySummary = 'היום';
+  static const regularHours = 'שעות רגילות';
+  static const shabbatHours = 'שעות שבת/חג ×1.5';
+  static const restTimesThisWeek = 'שבת וחגים השבוע';
+  static const restWindowStart = 'כניסה';
+  static const restWindowEnd = 'יציאה';
+  static const restTimesHint = 'שעות בתוך החלונות האלה מחושבות ×1.5';
+  static const totalHours = 'סה״כ שעות';
+  static const totalPay = 'סה״כ לתשלום';
+  static const shiftStart = 'התחלה';
+  static const shiftEnd = 'סיום';
+  static const estimatedPay = 'הערכת שכר';
+  static const wagePerHour = 'לשעה';
+  static const selectEmployee = 'בחר עובד';
+  static const addEmployeeFirst = 'כדי לתעד משמרת צריך קודם להוסיף עובד.';
+  static const invalidWage = 'יש להזין שכר שעתי תקין';
+  static const runningShift = 'משמרת רצה';
+  static const shiftsCount = 'משמרות';
+  static const payBreakdown = 'פירוט שכר';
+
   static const revenue = 'הכנסות';
   static const debtTracker = 'מעקב חובות';
   static const noUnpaid = 'אין חובות פתוחים';

@@ -12,6 +12,7 @@ import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/booking_provider.dart';
 import 'providers/dog_provider.dart';
+import 'providers/employee_provider.dart';
 import 'providers/pension_provider.dart';
 import 'providers/tag_provider.dart';
 import 'providers/vacation_provider.dart';
@@ -20,6 +21,7 @@ import 'services/booking_service.dart';
 import 'services/firestore_service.dart';
 import 'services/notification_service.dart';
 import 'services/storage_service.dart';
+import 'services/employee_service.dart';
 import 'services/pension_service.dart';
 import 'services/tag_service.dart';
 import 'services/vacation_service.dart';
@@ -63,6 +65,7 @@ void main() async {
         Provider<TagService>(create: (_) => tagService),
         Provider<VacationService>(create: (_) => VacationService()),
         Provider<PensionService>(create: (_) => PensionService()),
+        Provider<EmployeeService>(create: (_) => EmployeeService()),
         ChangeNotifierProvider<AuthProvider>(
           create: (ctx) => AuthProvider(ctx.read<AuthService>()),
         ),
@@ -104,6 +107,12 @@ void main() async {
           ),
           update: (ctx, service, storage, previous) =>
               previous ?? PensionProvider(service, storage),
+        ),
+        ChangeNotifierProxyProvider<EmployeeService, EmployeeProvider>(
+          create: (ctx) =>
+              EmployeeProvider(ctx.read<EmployeeService>())..startListening(),
+          update: (ctx, service, previous) =>
+              previous ?? (EmployeeProvider(service)..startListening()),
         ),
       ],
       child: const HaverBahatzerApp(),

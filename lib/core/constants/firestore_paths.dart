@@ -7,6 +7,8 @@ class FirestorePaths {
   static const vacations = 'vacations';
   static const pensionProducts = 'pension_products';
   static const pensionOrders = 'pension_orders';
+  static const employees = 'employees';
+  static const shifts = 'shifts';
 
   static String dogDocument(String dogId) => 'dogs/$dogId';
   static String bookingDocument(String bookingId) => 'bookings/$bookingId';
