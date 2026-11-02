@@ -127,6 +127,57 @@ class DogProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> uploadContractPhoto({
+    required String dogId,
+    required File imageFile,
+    required bool startNew,
+  }) async {
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final dog = _dogById(dogId);
+      if (dog == null) {
+        _errorMessage = 'הכלב לא נמצא';
+      } else {
+        final bytes = await ImageUtils.compressImageToBytes(imageFile) ??
+            await imageFile.readAsBytes();
+        final url = await _storageService.uploadContractPhoto(dogId, bytes);
+        await _firestoreService.saveDogContractPhoto(
+          dog: dog,
+          photoUrl: url,
+          startNew: startNew,
+        );
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+    }
+    notifyListeners();
+  }
+
+  Future<void> removeContractPhoto({
+    required String dogId,
+    required String photoUrl,
+  }) async {
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final dog = _dogById(dogId);
+      if (dog == null) {
+        _errorMessage = 'הכלב לא נמצא';
+      } else {
+        await _firestoreService.removeDogContractPhoto(
+          dog: dog,
+          photoUrl: photoUrl,
+        );
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+    }
+    notifyListeners();
+  }
+
   Future<void> deleteDog(String dogId) async {
     _isLoading = true;
     _errorMessage = null;
@@ -141,6 +192,12 @@ class DogProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Dog? _dogById(String dogId) {
+    final index = _dogs.indexWhere((dog) => dog.id == dogId);
+    if (index == -1) return null;
+    return _dogs[index];
   }
 
   void clearError() {

@@ -186,6 +186,15 @@ class AppStrings {
   }) =>
       'בתאריכים $dateRange: $maleDogName (זכר לא מסורס) ו-$femaleDogName (נקבה לא מעוקרת) ישהו יחד בפנסיון.';
   static const missingContract = 'חסר חוזה!';
+  static const contractExpiringSoon = 'החוזה עומד לפוג';
+  static const yearlyContract = 'חוזה שנתי';
+  static const previousContracts = 'חוזים קודמים';
+  static const uploadContract = 'העלה חוזה';
+  static const uploadNewContract = 'העלה חוזה חדש';
+  static const addContractPhoto = 'הוסף תמונה';
+  static const contractUploadedOnBooking = 'חוזה שהועלה להזמנה';
+  static const contractUploadOnDogProfile =
+      'העלאת חוזה חדש מתבצעת בפרופיל הכלב';
   static const snapContract = 'צלם חוזה';
   static const retakeContract = 'צלם מחדש';
   static const contractUploaded = 'החוזה הועלה בהצלחה';

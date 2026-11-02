@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dog_contract.dart';
 
 class Dog {
   final String id;
@@ -15,6 +16,8 @@ class Dog {
   final bool? isMale;
   final int? mealsPerDay;
   final String? additionalNotes;
+  final DogContract? contract;
+  final List<DogContract> previousContracts;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -33,6 +36,8 @@ class Dog {
     this.isMale,
     this.mealsPerDay,
     this.additionalNotes,
+    this.contract,
+    this.previousContracts = const [],
     required this.createdAt,
     required this.updatedAt,
   });
@@ -58,6 +63,8 @@ class Dog {
       isMale: data['isMale'] as bool?,
       mealsPerDay: data['mealsPerDay'] as int?,
       additionalNotes: data['additionalNotes'] as String?,
+      contract: DogContract.tryFromMap(data['contract']),
+      previousContracts: _parsePreviousContracts(data['previousContracts']),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -78,6 +85,8 @@ class Dog {
       'isMale': isMale,
       'mealsPerDay': mealsPerDay,
       'additionalNotes': additionalNotes,
+      // Yearly contract is written by its own updates, so a profile edit
+      // cannot overwrite photos that were just uploaded.
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
@@ -98,6 +107,8 @@ class Dog {
     Object? isMale = _sentinel,
     int? mealsPerDay,
     String? additionalNotes,
+    DogContract? contract,
+    List<DogContract>? previousContracts,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -116,6 +127,8 @@ class Dog {
       isMale: isMale == _sentinel ? this.isMale : isMale as bool?,
       mealsPerDay: mealsPerDay ?? this.mealsPerDay,
       additionalNotes: additionalNotes ?? this.additionalNotes,
+      contract: contract ?? this.contract,
+      previousContracts: previousContracts ?? this.previousContracts,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -132,3 +145,8 @@ class Dog {
 }
 
 const _sentinel = Object();
+
+List<DogContract> _parsePreviousContracts(dynamic raw) {
+  if (raw is! List) return const [];
+  return raw.map(DogContract.tryFromMap).whereType<DogContract>().toList();
+}

@@ -1,13 +1,13 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/constants/kennel_constants.dart';
+import '../../core/utils/dog_contract_rules.dart';
 import '../../models/booking_model.dart';
+import '../../models/dog_contract.dart';
 import '../../models/dog_model.dart';
 import '../../providers/booking_provider.dart';
 import '../../providers/dog_provider.dart';
@@ -25,8 +25,6 @@ class BookingDetailScreen extends StatefulWidget {
 }
 
 class _BookingDetailScreenState extends State<BookingDetailScreen> {
-  bool _isUploadingContract = false;
-
   Color _statusColor(BookingStatus status) {
     switch (status) {
       case BookingStatus.upcoming:
@@ -96,80 +94,6 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _removeContract(Booking liveBooking, String url) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('מחיקת תמונה'),
-        content: const Text('האם למחוק תמונה זו מהחוזה?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text(AppStrings.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('מחק', style: TextStyle(color: AppColors.error)),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    final provider = context.read<BookingProvider>();
-    await provider.removeContractUrl(liveBooking, url);
-    if (!mounted) return;
-    final error = provider.errorMessage;
-    if (error != null) {
-      showErrorSnackbar(context, error);
-      provider.clearError();
-    }
-  }
-
-  Future<void> _uploadContract(Booking liveBooking) async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text(AppStrings.photoFromCamera),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text(AppStrings.photoFromGallery),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (source == null) return;
-
-    final picked = await ImagePicker()
-        .pickImage(source: source, maxWidth: 1600, imageQuality: 85);
-    if (picked == null || !mounted) return;
-
-    setState(() => _isUploadingContract = true);
-
-    final provider = context.read<BookingProvider>();
-    await provider.uploadContract(liveBooking, File(picked.path));
-
-    if (!mounted) return;
-    setState(() => _isUploadingContract = false);
-
-    final error = provider.errorMessage;
-    if (error != null) {
-      showErrorSnackbar(context, error);
-      provider.clearError();
-    } else {
-      showSuccessSnackbar(context, AppStrings.contractUploaded);
-    }
   }
 
   void _showFullContract(String url) {
@@ -265,28 +189,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             ],
           ),
 
-          if (liveBooking.needsContractAlert) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.contractAlert.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.contractAlert),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded,
-                      color: AppColors.contractAlert),
-                  const SizedBox(width: 8),
-                  Text(
-                    AppStrings.missingContract,
-                    style: const TextStyle(color: AppColors.contractAlert),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          _DogContractAlerts(booking: liveBooking, dogs: bookingDogs),
 
           const SizedBox(height: 20),
 
@@ -493,74 +396,152 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                   value: liveBooking.payments.last.method.hebrewLabel),
           ],
 
-          // ── Contract section (boarding only) ───────────────────────────
-          if (liveBooking.type == BookingType.boarding) ...[
+          if (liveBooking.type == BookingType.boarding &&
+              (liveBooking.status == BookingStatus.upcoming ||
+                  liveBooking.status == BookingStatus.active ||
+                  liveBooking.contractPhotoUrls.isNotEmpty)) ...[
             const Divider(height: 32),
-            Text(
-              'חוזה',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
+            if (liveBooking.status == BookingStatus.upcoming ||
+                liveBooking.status == BookingStatus.active) ...[
+              Text(
+                AppStrings.yearlyContract,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                AppStrings.contractUploadOnDogProfile,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: AppColors.textSecondary),
+              ),
+            ],
             if (liveBooking.contractPhotoUrls.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                AppStrings.contractUploadedOnBooking,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8),
               SizedBox(
                 height: 130,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: liveBooking.contractPhotoUrls.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
                   itemBuilder: (_, i) {
                     final url = liveBooking.contractPhotoUrls[i];
-                    return Stack(
-                      children: [
-                        GestureDetector(
-                          onTap: () => _showFullContract(url),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(
-                              url,
-                              width: 130,
-                              height: 130,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
+                    return GestureDetector(
+                      onTap: () => _showFullContract(url),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          url,
+                          width: 130,
+                          height: 130,
+                          fit: BoxFit.cover,
                         ),
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: GestureDetector(
-                            onTap: () => _removeContract(liveBooking, url),
-                            child: Container(
-                              decoration: const BoxDecoration(
-                                color: Colors.black54,
-                                shape: BoxShape.circle,
-                              ),
-                              padding: const EdgeInsets.all(4),
-                              child: const Icon(Icons.close, size: 16, color: Colors.white),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     );
                   },
                 ),
               ),
-              const SizedBox(height: 8),
             ],
-            _isUploadingContract
-                ? const Center(child: CircularProgressIndicator())
-                : OutlinedButton.icon(
-                    icon: const Icon(Icons.add_a_photo_outlined, size: 18),
-                    label: Text(liveBooking.hasContract
-                        ? 'הוסף תמונה לחוזה'
-                        : AppStrings.snapContract),
-                    onPressed: () => _uploadContract(liveBooking),
-                  ),
           ],
 
           const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+class _DogContractAlerts extends StatelessWidget {
+  final Booking booking;
+  final List<Dog> dogs;
+
+  const _DogContractAlerts({required this.booking, required this.dogs});
+
+  @override
+  Widget build(BuildContext context) {
+    if (booking.type != BookingType.boarding) return const SizedBox.shrink();
+    if (booking.status != BookingStatus.upcoming &&
+        booking.status != BookingStatus.active) {
+      return const SizedBox.shrink();
+    }
+
+    final today = DateTime.now();
+    final missing = <Dog>[];
+    final expiring = <Dog>[];
+    for (final id in booking.dogIds) {
+      final index = dogs.indexWhere((dog) => dog.id == id);
+      if (index == -1) continue;
+      final dog = dogs[index];
+      final status = DogContractRules.statusOf(dog, today);
+      if (status == DogContractAlert.missing) missing.add(dog);
+      if (status == DogContractAlert.expiring) expiring.add(dog);
+    }
+    if (missing.isEmpty && expiring.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        children: [
+          if (missing.isNotEmpty)
+            _AlertBanner(
+              color: AppColors.contractAlert,
+              icon: Icons.warning_amber_rounded,
+              text: missing.length == 1
+                  ? '${missing.first.name}: ${AppStrings.missingContract}'
+                  : '${AppStrings.missingContract} ${missing.map((dog) => dog.name).join(', ')}',
+            ),
+          if (missing.isNotEmpty && expiring.isNotEmpty)
+            const SizedBox(height: 8),
+          if (expiring.isNotEmpty)
+            _AlertBanner(
+              color: AppColors.contractExpiring,
+              icon: Icons.schedule,
+              text: expiring
+                  .map((dog) =>
+                      '${dog.name}: ${AppStrings.contractExpiringSoon} · ${contractDaysRemainingLabel(dog.contract!.daysRemainingOn(today))}')
+                  .join('\n'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AlertBanner extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  final String text;
+
+  const _AlertBanner({
+    required this.color,
+    required this.icon,
+    required this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: TextStyle(color: color))),
         ],
       ),
     );

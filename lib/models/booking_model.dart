@@ -200,6 +200,7 @@ class Booking {
     return BookingStatus.active;
   }
 
+  /// Photos stored on this booking. New contracts live on the dog.
   bool get hasContract => contractPhotoUrls.isNotEmpty;
 
   double get paidAmount {
@@ -217,11 +218,6 @@ class Booking {
   }
 
   bool get isFullyPaid => (totalPrice ?? 0) > 0 && remainingAmount <= 0.01;
-
-  bool get needsContractAlert =>
-      type == BookingType.boarding &&
-      (status == BookingStatus.upcoming || status == BookingStatus.active) &&
-      !hasContract;
 
   int get numberOfDays => endDate.difference(startDate).inDays + 1;
 

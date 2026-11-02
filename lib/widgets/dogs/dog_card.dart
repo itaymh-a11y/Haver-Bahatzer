@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_strings.dart';
+import '../../core/utils/dog_contract_rules.dart';
+import '../../models/dog_contract.dart';
 import '../../models/dog_model.dart';
 import '../../models/tag_model.dart';
+import '../../providers/booking_provider.dart';
 import '../../providers/tag_provider.dart';
 import '../../screens/dogs/dog_detail_screen.dart';
 import 'dog_tag_chip.dart';
@@ -14,6 +19,10 @@ class DogCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tagProvider = context.watch<TagProvider>();
+    final contractAlert = DogContractRules.alertForDog(
+      dog,
+      context.watch<BookingProvider>().bookings,
+    );
     final resolvedTags = dog.tags
         .map((id) => tagProvider.findById(id))
         .whereType<CustomTag>()
@@ -57,6 +66,10 @@ class DogCard extends StatelessWidget {
                       dog.ownerName,
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
+                    if (contractAlert != DogContractAlert.none) ...[
+                      const SizedBox(height: 6),
+                      _ContractChip(alert: contractAlert),
+                    ],
                     if (resolvedTags.isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Wrap(
@@ -72,6 +85,34 @@ class DogCard extends StatelessWidget {
               const Icon(Icons.chevron_left, color: Colors.grey),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ContractChip extends StatelessWidget {
+  final DogContractAlert alert;
+
+  const _ContractChip({required this.alert});
+
+  @override
+  Widget build(BuildContext context) {
+    final missing = alert == DogContractAlert.missing;
+    final color =
+        missing ? AppColors.contractAlert : AppColors.contractExpiring;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        missing ? AppStrings.missingContract : AppStrings.contractExpiringSoon,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );

@@ -11,6 +11,7 @@ import '../../providers/dog_provider.dart';
 import '../../providers/tag_provider.dart';
 import '../../widgets/common/error_snackbar.dart';
 import '../../widgets/bookings/booking_card.dart';
+import '../../widgets/dogs/dog_contract_card.dart';
 import '../../widgets/dogs/dog_tag_chip.dart';
 import 'dog_form_screen.dart';
 
@@ -176,6 +177,8 @@ class _ProfileTab extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
+        DogContractCard(dog: dog),
+        const SizedBox(height: 16),
         _InfoCard(dog: dog, onCall: onCall),
         if (dog.tags.isNotEmpty) ...[
           const SizedBox(height: 16),

@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/constants/kennel_constants.dart';
+import '../../core/utils/dog_contract_rules.dart';
 import '../../models/booking_model.dart';
+import '../../models/dog_contract.dart';
 import '../../models/stay_phase.dart';
 import '../../providers/booking_provider.dart';
 import '../../providers/dog_provider.dart';
@@ -70,6 +72,7 @@ class BookingCard extends StatelessWidget {
         .map((c) => KennelConstants.findById(c.kennelId)?.hebrewName)
         .whereType<String>()
         .toList();
+    final contractAlert = DogContractRules.alertForBooking(booking, dogs);
     final kennelLabel = kennelInfo == null
         ? null
         : changeNames.isEmpty
@@ -272,21 +275,25 @@ class BookingCard extends StatelessWidget {
                 ],
               ),
             ),
-            if (booking.needsContractAlert)
+            if (contractAlert != DogContractAlert.none)
               Positioned(
                 top: 0,
                 left: 0,
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: const BoxDecoration(
-                    color: AppColors.contractAlert,
-                    borderRadius: BorderRadius.only(
+                  decoration: BoxDecoration(
+                    color: contractAlert == DogContractAlert.missing
+                        ? AppColors.contractAlert
+                        : AppColors.contractExpiring,
+                    borderRadius: const BorderRadius.only(
                       bottomLeft: Radius.circular(8),
                     ),
                   ),
                   child: Text(
-                    AppStrings.missingContract,
+                    contractAlert == DogContractAlert.missing
+                        ? AppStrings.missingContract
+                        : AppStrings.contractExpiringSoon,
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 10,

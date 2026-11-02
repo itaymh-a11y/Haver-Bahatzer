@@ -22,6 +22,7 @@ class AppColors {
   static const statusActive = Color(0xFF2E7D32);     // green
   static const statusCompleted = Color(0xFF757575);  // grey
   static const contractAlert = Color(0xFFD32F2F);    // red
+  static const contractExpiring = Color(0xFFEF6C00); // orange
   static const boardingDot = Color(0xFF2E7D32);      // green dot on calendar
   static const introMeetingDot = Color(0xFFF9A825);  // amber dot on calendar
   static const vacationDay = Color(0xFF9E9E9E);     // blocked vacation days
